@@ -1,0 +1,34 @@
+name: Weekly Top List
+
+on:
+  schedule:
+    - cron: "30 10 * * 5"
+
+jobs:
+  BuildAndDeploy:
+    runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      BARK_KEY: ${{ secrets.BARK_KEY }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm & install
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.2
+          run_install: true
+
+      - name: Run Script
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          API_KEY: ${{ secrets.API_KEY }}
+        run: pnpm tsx index.ts
