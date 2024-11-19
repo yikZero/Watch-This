@@ -63,7 +63,7 @@ async function generateRankingSummary() {
 参考: ${hotSearchRanking}`,
     });
 
-    const fullContent = `#周五下班快乐\n\n💥 *本周影视热榜 (${dateRange.start} - ${dateRange.end})*\n\n${result.text}`;
+    const fullContent = `💥 *本周影视热榜 (${dateRange.start} - ${dateRange.end})*\n\n${result.text}\n\n#周五下班快乐`;
 
     await sendTelegramNotification(fullContent);
 
