@@ -1,5 +1,11 @@
 import axios from "axios";
 
+// 定义按钮接口
+interface TelegramButton {
+  text: string;
+  url: string;
+}
+
 export async function sendBarkNotification(title: string, content: string) {
   const BARK_KEY = process.env.BARK_KEY;
   if (!BARK_KEY) {
@@ -24,6 +30,7 @@ export async function sendBarkNotification(title: string, content: string) {
 
 export async function sendTelegramNotification(
   message: string,
+  buttons?: TelegramButton[],
   chatId?: string | number
 ) {
   const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -33,20 +40,32 @@ export async function sendTelegramNotification(
   }
 
   try {
-    // 如果没有提供特定的 chatId,则从环境变量中获取默认值
     const TELEGRAM_CHAT_ID = chatId || process.env.TELEGRAM_CHAT_ID;
     if (!TELEGRAM_CHAT_ID) {
       console.error("TELEGRAM_CHAT_ID not found");
       return;
     }
 
+    const requestData: any = {
+      chat_id: TELEGRAM_CHAT_ID,
+      text: message,
+      parse_mode: "Markdown",
+    };
+
+    if (buttons && buttons.length > 0) {
+      requestData.reply_markup = {
+        inline_keyboard: [
+          buttons.map((button) => ({
+            text: button.text,
+            url: button.url,
+          })),
+        ],
+      };
+    }
+
     const response = await axios.post(
       `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
-      {
-        chat_id: TELEGRAM_CHAT_ID,
-        text: message,
-        parse_mode: "Markdown",
-      }
+      requestData
     );
 
     if (response.status === 200) {

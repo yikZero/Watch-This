@@ -63,9 +63,14 @@ async function generateRankingSummary() {
 参考: ${hotSearchRanking}`,
     });
 
-    const fullContent = `💥 *本周影视热榜 (${dateRange.start} - ${dateRange.end})*\n\n${result.text}\n\n#周五下班快乐`;
+    const fullContent = `💥 *本周影视热榜 (${dateRange.start} - ${dateRange.end})*\n\n${result.text}\n\n#周末愉快 #影视热榜`;
 
-    await sendTelegramNotification(fullContent);
+    await sendTelegramNotification(fullContent, [
+      {
+        text: "开始追剧",
+        url: "https://apps.apple.com/us/app/infuse-video-player/id1136220934",
+      },
+    ]);
 
     return fullContent;
   } catch (error) {
