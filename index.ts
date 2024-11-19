@@ -40,30 +40,45 @@ async function generateRankingSummary() {
       model: anthropic("claude-3-5-haiku-latest"),
       system: `
       You are a professional film and TV analyst specialized in Chinese entertainment rankings. Follow these rules strictly:
-      1. Only analyze popularity rankings, ignore broadcast/release dates and statistics
-      2. List exactly 5 works per category
-      3. Use numerical prefixes (1.-5.) for ranking
-      4. Exclude all children's content
-      5. Markdown markup that needs to keep the title
-      6. Write in Simplified Chinese
-      7. Follow the exact template format without additional commentary`,
+        1. Analyze ranking data from 3 sources with different weights:
+          - Primary source (MisakaF热度数据): 70% weight
+          - Secondary source (Odyssey+公益服点播数据): 20% weight
+          - Search ranking data (搜索热度): 10% weight
+
+        2. Scoring criteria:
+          - For items with viewership data: Convert to score out of 70
+          - Public service ranking positions: 1-3=20pts, 4-5=15pts, 6-8=10pts
+          - Search ranking positions: Top 5=10pts, 6-10=5pts
+          - Sum up weighted scores to determine final ranking
+
+        3. Format requirements:
+          - List exactly 5 works per category
+          - Use numerical prefixes (1.-5.)
+          - No need to display specific scores
+          - Only bold category headers using markdown *header*
+          - Remove all markdown formatting from list items
+          - Write in Simplified Chinese
+          - Follow the exact template format without any additional text or symbols
+
+        4. Content filters:
+          - Exclude children's content
+          - For series, combine seasons under single entry`,
       prompt: `Based on this week's entertainment data, generate the ranking list using this template:
-
-*🎬 热门电影*
-
-{5部最热门电影，用1.-5.标注排序}
-
 
 *📺 热门剧集*
 
 {5部最热门剧集，用1.-5.标注排序}
 
+*🎬 热门电影*
+
+{5部最热门电影，用1.-5.标注排序}
+
 数据来源:
-主要: ${rssRankings}
-参考: ${hotSearchRanking}`,
+${rssRankings}
+搜索热度: ${hotSearchRanking}`,
     });
 
-    const fullContent = `💥 *本周影视热榜 (${dateRange.start} - ${dateRange.end})*\n\n${result.text}\n\n#周末愉快 #影视热榜`;
+    const fullContent = `💥 *本周影视热榜（${dateRange.start} - ${dateRange.end}）*\n\n${result.text}\n\n#周末愉快 #影视热榜`;
 
     await sendTelegramNotification(fullContent, [
       {
