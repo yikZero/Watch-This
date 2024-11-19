@@ -1,0 +1,28 @@
+{
+  "name": "Watch-This",
+  "version": "1.0.0",
+  "description": "Aggregation channel's weekly movie and TV series list",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "yikZero",
+  "license": "MIT",
+  "packageManager": "pnpm@9.12.2",
+  "dependencies": {
+    "@ai-sdk/anthropic": "^0.0.56",
+    "ai": "^3.4.33",
+    "axios": "^1.7.7",
+    "date-fns": "^4.1.0",
+    "dotenv": "^16.4.5",
+    "rss-parser": "^3.13.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}
