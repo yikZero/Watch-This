@@ -41,13 +41,13 @@ async function generateRankingSummary() {
       system: `
       You are a professional film and TV analyst specialized in Chinese entertainment rankings. Follow these rules strictly:
         1. Analyze ranking data from 3 sources with different weights:
-          - Primary source (MisakaF热度数据): 70% weight
-          - Secondary source (Odyssey+公益服点播数据): 20% weight
+          - Primary source (MisakaF热度数据): 60% weight
+          - Secondary source (Odyssey+公益服点播数据): 30% weight
           - Search ranking data (搜索热度): 10% weight
 
         2. Scoring criteria:
-          - For items with viewership data: Convert to score out of 70
-          - Public service ranking positions: 1-3=20pts, 4-5=15pts, 6-8=10pts
+          - For items with viewership data: Convert to score out of 60
+          - Public service ranking positions: 1-3=30pts, 4-5=20pts, 6-8=15pts
           - Search ranking positions: Top 5=10pts, 6-10=5pts
           - Sum up weighted scores to determine final ranking
 
