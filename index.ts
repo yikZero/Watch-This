@@ -7,6 +7,12 @@ import { sendTelegramNotification } from "./notification";
 
 dotenv.config();
 
+async function extractFinalRanking(text) {
+  const regex = /<final_ranking>([\s\S]*?)<\/final_ranking>/;
+  const match = text.match(regex);
+  return match ? match[1].trim() : "";
+}
+
 function getDateRange() {
   const currentDate = new Date();
   const endDate = new Date(currentDate);
@@ -37,48 +43,73 @@ async function generateRankingSummary() {
     const hotSearchRanking = await getHotSearchData();
 
     const result = await generateText({
-      model: anthropic("claude-3-5-haiku-latest"),
-      system: `
-      You are a professional film and TV analyst specialized in Chinese entertainment rankings. Follow these rules strictly:
-        1. Analyze ranking data from 3 sources with different weights:
-          - Primary source (MisakaF热度数据): 60% weight
-          - Secondary source (Odyssey+公益服点播数据): 30% weight
-          - Search ranking data (搜索热度): 10% weight
+      model: anthropic("claude-3-5-sonnet-latest"),
+      system: `You are a professional film and TV analyst specialized in entertainment rankings. Your task is to analyze weekly entertainment data and generate a ranking list of popular TV series and movies.`,
+      prompt: `
+      First, review the input data:
 
-        2. Scoring criteria:
-          - For items with viewership data: Convert to score out of 60
-          - Public service ranking positions: 1-3=30pts, 4-5=20pts, 6-8=15pts
-          - Search ranking positions: Top 5=10pts, 6-10=5pts
-          - Sum up weighted scores to determine final ranking
+        <rss_rankings>
+        ${rssRankings}
+        </rss_rankings>
 
-        3. Format requirements:
+        <hot_search_ranking>
+        ${hotSearchRanking}
+        </hot_search_ranking>
+
+        Instructions:
+
+        1. Data Analysis:
+          - Exclude children's content from consideration.
+          - Works must appear in at least 2 data sources to be ranked.
+          - Analyze ranking data using the Scoring Criteria.
+
+        2. Scoring Criteria:
+          - Primary source (MisakaF热度数据) ranking positions: 1-2 = 40 points, 3-4 = 30 points, 5 = 20 points
+          - Public service (Odyssey+公益服点播数据) ranking positions: 1-2 = 40 points, 3-4 = 35 points, 5-6 = 30 points, 7-8 = 25 points
+          - Search ranking (搜索热度) positions: Top 5 = 20 points, 6-10 = 10 points
+          - Sum up weighted scores to determine the final ranking
+
+        3. Ranking Generation:
+          - Generate separate rankings for TV series and movies
           - List exactly 5 works per category
-          - Use numerical prefixes (1.-5.)
-          - No need to display specific scores
+
+        4. Output Formatting:
+          - Use the following template, writing in Simplified Chinese:
+            *📺 热门剧集*
+
+            1. [TV Series 1]
+            2. [TV Series 2]
+            3. [TV Series 3]
+            4. [TV Series 4]
+            5. [TV Series 5]
+
+            *🎬 热门电影*
+
+            1. [Movie 1]
+            2. [Movie 2]
+            3. [Movie 3]
+            4. [Movie 4]
+            5. [Movie 5]
+
+          - Use numerical prefixes (1.-5.) for each item
           - Only bold category headers using markdown *header*
           - Remove all markdown formatting from list items
-          - Write in Simplified Chinese
-          - Follow the exact template format without any additional text or symbols
 
-        4. Content filters:
-          - Exclude children's content
-          - For series, combine seasons under single entry`,
-      prompt: `Based on this week's entertainment data, generate the ranking list using this template:
+        Before providing the final output, wrap your scoring and ranking process inside <scoring_process> tags. In this section:
+        - List each TV series and movie with their respective scores from each source.
+        - Show your calculations for the weighted scores.
+        - Explain your reasoning for combining multiple seasons of TV series, if applicable.
+        - Demonstrate how you arrived at the final rankings.
+        This will help ensure accuracy and alignment with the given criteria. It's OK for this section to be quite long.
 
-*📺 热门剧集*
+        After your scoring process, present the final ranking list in the specified format, the final ranking must inside <final_ranking> tags.
 
-{5部最热门剧集，用1.-5.标注排序}
-
-*🎬 热门电影*
-
-{5部最热门电影，用1.-5.标注排序}
-
-数据来源:
-${rssRankings}
-搜索热度: ${hotSearchRanking}`,
+        Remember to carefully consider all aspects of the data to ensure the list is calculated in line with the specified requirements.`,
     });
 
-    const fullContent = `💥 *本周影视热榜（${dateRange.start} - ${dateRange.end}）*\n\n${result.text}\n\n#周末愉快 #影视热榜`;
+    const finalRanking = await extractFinalRanking(result.text);
+
+    const fullContent = `💥 *本周影视热榜（${dateRange.start} - ${dateRange.end}）*\n\n${finalRanking}\n\n#周末愉快 #影视热榜`;
 
     await sendTelegramNotification(fullContent, [
       {
@@ -90,7 +121,6 @@ ${rssRankings}
     return fullContent;
   } catch (error) {
     console.error("Error:", error);
-    await sendTelegramNotification("排行榜生成失败");
     throw error;
   }
 }
