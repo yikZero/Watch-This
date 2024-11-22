@@ -8,12 +8,23 @@ import { sendTelegramNotification } from "./notification";
 dotenv.config();
 
 async function extractFinalRanking(text) {
+  console.log("📝 Extracting final ranking from generated text...");
   const regex = /<final_ranking>([\s\S]*?)<\/final_ranking>/;
   const match = text.match(regex);
-  return match ? match[1].trim() : "";
+  if (!match) {
+    console.warn("⚠️ No final ranking tags found in the generated text");
+    console.log("\nComplete AI response for debugging:");
+    console.log("-".repeat(50));
+    console.log(text);
+    console.log("-".repeat(50));
+    return "";
+  }
+  console.log("✅ Final ranking extracted successfully");
+  return match[1].trim();
 }
 
 function getDateRange() {
+  console.log("📅 Calculating date range for the weekly ranking...");
   const currentDate = new Date();
   const endDate = new Date(currentDate);
 
@@ -30,18 +41,37 @@ function getDateRange() {
     return `${month}.${day}`;
   };
 
-  return {
+  const range = {
     start: formatDate(startDate),
     end: formatDate(endDate),
   };
+
+  console.log(`📍 Date range calculated: ${range.start} - ${range.end}`);
+  return range;
 }
 
 async function generateRankingSummary() {
+  console.log("🚀 Starting ranking generation process...");
   try {
     const dateRange = getDateRange();
-    const rssRankings = await getFeedItems();
-    const hotSearchRanking = await getHotSearchData();
 
+    console.log("📊 Fetching RSS feed items...");
+    const rssRankings = await getFeedItems();
+    console.log(
+      `✅ RSS feed items fetched successfully (${
+        rssRankings.split("\n").length
+      } lines)`
+    );
+
+    console.log("🔍 Fetching hot search data...");
+    const hotSearchRanking = await getHotSearchData();
+    console.log(
+      `✅ Hot search data fetched successfully (${
+        hotSearchRanking.split("\n").length
+      } lines)`
+    );
+
+    console.log("🤖 Generating ranking using Claude...");
     const result = await generateText({
       model: anthropic("claude-3-5-sonnet-latest"),
       system: `You are a professional film and TV analyst specialized in entertainment rankings. Your task is to analyze weekly entertainment data and generate a ranking list of popular TV series and movies.`,
@@ -106,11 +136,22 @@ async function generateRankingSummary() {
 
         Remember to carefully consider all aspects of the data to ensure the list is calculated in line with the specified requirements.`,
     });
+    console.log("✅ Ranking generated successfully");
+
+    // 打印完整的 AI 响应内容
+    console.log("\n📄 Complete AI Response:");
+    console.log("=".repeat(50));
+    console.log(result.text);
+    console.log("=".repeat(50));
 
     const finalRanking = await extractFinalRanking(result.text);
+    if (!finalRanking) {
+      throw new Error("Failed to extract final ranking from generated text");
+    }
 
     const fullContent = `💥 *本周影视热榜（${dateRange.start} - ${dateRange.end}）*\n\n${finalRanking}\n\n#周末愉快 #影视热榜`;
 
+    console.log("📤 Sending notification to Telegram...");
     await sendTelegramNotification(fullContent, [
       {
         text: "开始追剧",
@@ -120,11 +161,25 @@ async function generateRankingSummary() {
 
     return fullContent;
   } catch (error) {
-    console.error("Error:", error);
+    console.error("❌ Error in generateRankingSummary:", error);
+    console.error("Error details:", {
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause,
+    });
     throw error;
   }
 }
 
 generateRankingSummary()
-  .then((summary) => console.log("\nSummary:\n", summary))
-  .catch(console.error);
+  .then((summary) => {
+    console.log("\n📋 Final Summary Generated:");
+    console.log("=".repeat(50));
+    console.log(summary);
+    console.log("=".repeat(50));
+    console.log("✨ Process completed successfully!");
+  })
+  .catch((error) => {
+    console.error("❌ Process failed:", error);
+    process.exit(1);
+  });

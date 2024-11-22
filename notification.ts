@@ -69,9 +69,9 @@ export async function sendTelegramNotification(
     );
 
     if (response.status === 200) {
-      console.log("Telegram notification sent successfully");
+      console.log("✅ Telegram notification sent successfully");
     }
   } catch (error) {
-    console.error("Failed to send Telegram notification:", error);
+    console.error("❌ Failed to send Telegram notification:", error);
   }
 }
