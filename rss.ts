@@ -14,10 +14,6 @@ const parser: Parser<CustomFeed, CustomItem> = new Parser({
 
 const RSS_URLS = [
   {
-    text: "MisakaF热度数据",
-    url: "https://sinrowa.com/telegram/channel/misakaf_emby/searchQuery=%23%E6%AF%8F%E5%91%A8%E6%A6%9C%E5%8D%95",
-  },
-  {
     text: "Odyssey+公益服点播数据",
     url: "https://sinrowa.com/telegram/channel/odysseyplus/searchQuery=%23TopOnOdyssey",
   },

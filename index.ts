@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import { getFeedItems } from "./rss";
 import { getHotSearchData } from "./hotsearchlist";
 import { sendTelegramNotification } from "./notification";
+import { getDoubanHot } from "./douban";
 
 dotenv.config();
 
@@ -71,9 +72,17 @@ async function generateRankingSummary() {
       } lines)`
     );
 
+    console.log("📚 Fetching Douban hot data...");
+    const doubanHotRanking = await getDoubanHot();
+    console.log(
+      `✅ Douban hot data fetched successfully (${
+        doubanHotRanking.split("\n").length
+      } lines)`
+    );
+
     console.log("🤖 Generating ranking using Claude...");
     const result = await generateText({
-      model: anthropic("claude-3-5-sonnet-latest"),
+      model: anthropic("claude-3-7-sonnet-20250219"),
       system: `You are a professional film and TV analyst specialized in entertainment rankings. Your task is to analyze weekly entertainment data and generate a ranking list of popular TV series and movies.`,
       prompt: `
       First, review the input data:
@@ -86,6 +95,10 @@ async function generateRankingSummary() {
         ${hotSearchRanking}
         </hot_search_ranking>
 
+        <douban_hot_ranking>
+        ${doubanHotRanking}
+        </douban_hot_ranking>
+
         Instructions:
 
         1. Data Analysis:
@@ -94,9 +107,9 @@ async function generateRankingSummary() {
           - Analyze ranking data using the Scoring Criteria.
 
         2. Scoring Criteria:
-          - Primary source (MisakaF热度数据) ranking positions: 1-2 = 40 points, 3-4 = 30 points, 5 = 20 points
           - Public service (Odyssey+公益服点播数据) ranking positions: 1-2 = 40 points, 3-4 = 35 points, 5-6 = 30 points, 7-8 = 25 points
           - Search ranking (搜索热度) positions: Top 5 = 20 points, 6-10 = 10 points
+          - Douban ranking (豆瓣热榜) positions: Top 5 = 15 points, 6-10 = 10 points, 11-20 = 5 points
           - Sum up weighted scores to determine the final ranking
 
         3. Ranking Generation:
