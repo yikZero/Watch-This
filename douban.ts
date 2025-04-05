@@ -1,90 +1,74 @@
-import axios from "axios";
+import Parser from "rss-parser";
+import { cleanHtml } from "./utils.ts";
 
-interface DoubanSubject {
+type CustomFeed = {};
+type CustomItem = {
   title: string;
-  rate: string;
-  url: string;
-}
+  description: string;
+  pubDate: string;
+};
 
-export const getDoubanMovieHot = async (
-  limit: number = 10
-): Promise<string> => {
+const parser: Parser<CustomFeed, CustomItem> = new Parser({
+  customFields: {
+    item: ["title", "description", "pubDate"],
+  },
+});
+
+const RSS_URLS = {
+  movie: "https://sinrowa.com/douban/list/movie_real_time_hotest",
+  tv: "https://sinrowa.com/douban/list/tv_real_time_hotest",
+};
+
+const formatItem = (item: CustomItem, index: number) => {
+  const description = cleanHtml(item.description);
+
+  // Extract rating if exists
+  const ratingMatch = description.match(/\d+\.\d+/);
+  const rating = ratingMatch ? `⭐ ${ratingMatch[0]}` : "";
+
+  // Extract year and country
+  const yearCountryMatch = description.match(/\d{4} \/ .*? \/ /);
+  const yearCountry = yearCountryMatch
+    ? yearCountryMatch[0].replace(/\//g, "|").trim()
+    : "";
+
+  // Extract genres
+  const genresMatch = description.match(/\/ .*? \/ /);
+  const genres = genresMatch ? genresMatch[0].replace(/\//g, "|").trim() : "";
+
+  // Extract director and actors
+  const directorActorsMatch = description.match(/\/ .*?$/);
+  const directorActors = directorActorsMatch
+    ? directorActorsMatch[0].replace(/\//g, "|").trim()
+    : "";
+
+  return `${index + 1}. ${item.title} ${rating}
+${yearCountry}${genres}${directorActors}`;
+};
+
+const getFeedItems = async (type: "movie" | "tv"): Promise<string> => {
   try {
-    const response = await axios.get(
-      "https://movie.douban.com/j/search_subjects",
-      {
-        params: {
-          type: "movie",
-          tag: "热门",
-          page_limit: 50,
-          page_start: 0,
-        },
-      }
-    );
+    const feed = await parser.parseURL(RSS_URLS[type]);
+    const title =
+      type === "movie" ? "🎬 豆瓣实时热门电影" : "📺 豆瓣实时热门电视剧";
 
-    if (response.data && response.data.subjects) {
-      const movies = response.data.subjects.slice(0, limit);
-      return formatDoubanList(movies, "电影");
-    }
+    const formattedItems = feed.items
+      .slice(0, 10) // Get top 10 items
+      .map((item, index) => formatItem(item, index))
+      .join("\n\n");
 
-    return "";
+    return `${title}\n\n${formattedItems}`;
   } catch (error) {
-    console.error("获取豆瓣电影热榜失败:", error);
+    console.error(`Error parsing Douban ${type} feed:`, error);
     return "";
   }
 };
 
-export const getDoubanTVHot = async (limit: number = 10): Promise<string> => {
-  try {
-    const response = await axios.get(
-      "https://movie.douban.com/j/search_subjects",
-      {
-        params: {
-          type: "tv",
-          tag: "热门",
-          page_limit: 50,
-          page_start: 0,
-        },
-      }
-    );
+export const getDoubanRankings = async (): Promise<string> => {
+  const [movies, tvShows] = await Promise.all([
+    getFeedItems("movie"),
+    getFeedItems("tv"),
+  ]);
 
-    if (response.data && response.data.subjects) {
-      const tvShows = response.data.subjects.slice(0, limit);
-      return formatDoubanList(tvShows, "剧集");
-    }
-
-    return "";
-  } catch (error) {
-    console.error("获取豆瓣电视剧热榜失败:", error);
-    return "";
-  }
-};
-
-const formatDoubanList = (items: DoubanSubject[], type: string): string => {
-  if (!items || items.length === 0) {
-    return "";
-  }
-
-  const header = `📊 豆瓣热门${type}榜单：\n\n`;
-
-  const list = items
-    .map((item, index) => {
-      const rating = item.rate ? `⭐${item.rate}` : "暂无评分";
-      return `${index + 1}. ${item.title} ${rating}`;
-    })
-    .join("\n");
-
-  return header + list;
-};
-
-export const getDoubanHot = async (limit: number = 10): Promise<string> => {
-  try {
-    const movieHot = await getDoubanMovieHot(limit);
-    const tvHot = await getDoubanTVHot(limit);
-
-    return movieHot + "\n\n" + tvHot;
-  } catch (error) {
-    console.error("获取豆瓣热榜失败:", error);
-    return "";
-  }
+  return `${movies}\n\n${tvShows}`;
 };

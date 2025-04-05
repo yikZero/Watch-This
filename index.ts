@@ -1,12 +1,15 @@
-import { anthropic } from "@ai-sdk/anthropic";
 import { generateText } from "ai";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import dotenv from "dotenv";
-import { getFeedItems } from "./rss";
-import { getHotSearchData } from "./hotsearchlist";
+import { getFeedItems } from "./odyssey";
 import { sendTelegramNotification } from "./notification";
-import { getDoubanHot } from "./douban";
+import { getDoubanRankings } from "./douban";
 
 dotenv.config();
+
+const openrouter = createOpenRouter({
+  apiKey: process.env.OPENROUTER_API_KEY,
+});
 
 async function extractFinalRanking(text) {
   console.log("📝 Extracting final ranking from generated text...");
@@ -56,60 +59,48 @@ async function generateRankingSummary() {
   try {
     const dateRange = getDateRange();
 
-    console.log("📊 Fetching RSS feed items...");
-    const rssRankings = await getFeedItems();
+    console.log("🔍 Fetching Odyssey data...");
+    const odysseyRanking = await getFeedItems();
     console.log(
-      `✅ RSS feed items fetched successfully (${
-        rssRankings.split("\n").length
-      } lines)`
-    );
-
-    console.log("🔍 Fetching hot search data...");
-    const hotSearchRanking = await getHotSearchData();
-    console.log(
-      `✅ Hot search data fetched successfully (${
-        hotSearchRanking.split("\n").length
+      `✅ Odyssey data fetched successfully (${
+        odysseyRanking.split("\n").length
       } lines)`
     );
 
     console.log("📚 Fetching Douban hot data...");
-    const doubanHotRanking = await getDoubanHot();
+    const doubanRanking = await getDoubanRankings();
     console.log(
       `✅ Douban hot data fetched successfully (${
-        doubanHotRanking.split("\n").length
+        doubanRanking.split("\n").length
       } lines)`
     );
 
-    console.log("🤖 Generating ranking using Claude...");
+    console.log("🤖 Generating ranking using OpenRouter...");
     const result = await generateText({
-      model: anthropic("claude-3-7-sonnet-20250219"),
+      model: openrouter("anthropic/claude-3.7-sonnet"),
       system: `You are a professional film and TV analyst specialized in entertainment rankings. Your task is to analyze weekly entertainment data and generate a ranking list of popular TV series and movies.`,
       prompt: `
       First, review the input data:
 
-        <rss_rankings>
-        ${rssRankings}
-        </rss_rankings>
+        <odyssey_ranking>
+        ${odysseyRanking}
+        </odyssey_ranking>
 
-        <hot_search_ranking>
-        ${hotSearchRanking}
-        </hot_search_ranking>
-
-        <douban_hot_ranking>
-        ${doubanHotRanking}
-        </douban_hot_ranking>
+        <douban_ranking>
+        ${doubanRanking}
+        </douban_ranking>
 
         Instructions:
 
         1. Data Analysis:
           - Exclude children's content from consideration.
-          - Works must appear in at least 2 data sources to be ranked.
+          - Works should appear in at least two data sources to be ranked.
           - Analyze ranking data using the Scoring Criteria.
 
         2. Scoring Criteria:
-          - Public service (Odyssey+公益服点播数据) ranking positions: 1-2 = 40 points, 3-4 = 35 points, 5-6 = 30 points, 7-8 = 25 points
-          - Search ranking (搜索热度) positions: Top 5 = 20 points, 6-10 = 10 points
-          - Douban ranking (豆瓣热榜) positions: Top 5 = 15 points, 6-10 = 10 points, 11-20 = 5 points
+          - Douban ranking positions: Top 5 = 15 points, 6-10 = 10 points
+          - Douban ratings above 9.0 add 5 points
+          - Odyssey ranking positions: Top 5 = 10 points, 6-10 = 5 points
           - Sum up weighted scores to determine the final ranking
 
         3. Ranking Generation:
@@ -133,7 +124,7 @@ async function generateRankingSummary() {
             3. [Movie 3]
             4. [Movie 4]
             5. [Movie 5]
-
+            
           - Use numerical prefixes (1.-5.) for each item
           - Only bold category headers using markdown *header*
           - Remove all markdown formatting from list items
@@ -151,7 +142,6 @@ async function generateRankingSummary() {
     });
     console.log("✅ Ranking generated successfully");
 
-    // 打印完整的 AI 响应内容
     console.log("\n📄 Complete AI Response:");
     console.log("=".repeat(50));
     console.log(result.text);
