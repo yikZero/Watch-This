@@ -1,5 +1,6 @@
 import Parser from "rss-parser";
 import { cleanHtml } from "./utils.ts";
+import { RSS_URLS, getRssUrl } from "./rsshub.ts";
 
 type CustomFeed = {};
 type CustomItem = {
@@ -13,11 +14,6 @@ const parser: Parser<CustomFeed, CustomItem> = new Parser({
     item: ["title", "description", "pubDate"],
   },
 });
-
-const RSS_URLS = {
-  movie: "https://sinrowa.com/douban/list/movie_real_time_hotest",
-  tv: "https://sinrowa.com/douban/list/tv_real_time_hotest",
-};
 
 const formatItem = (item: CustomItem, index: number) => {
   const description = cleanHtml(item.description);
@@ -47,21 +43,35 @@ ${yearCountry}${genres}${directorActors}`;
 };
 
 const getFeedItems = async (type: "movie" | "tv"): Promise<string> => {
-  try {
-    const feed = await parser.parseURL(RSS_URLS[type]);
-    const title =
-      type === "movie" ? "🎬 豆瓣实时热门电影" : "📺 豆瓣实时热门电视剧";
+  let endpointIndex = 0;
+  let lastError: Error | null = null;
 
-    const formattedItems = feed.items
-      .slice(0, 10) // Get top 10 items
-      .map((item, index) => formatItem(item, index))
-      .join("\n\n");
+  while (endpointIndex < 3) {
+    // 最多尝试3次
+    try {
+      const feed = await parser.parseURL(
+        getRssUrl(RSS_URLS.douban[type], endpointIndex)
+      );
+      const title =
+        type === "movie" ? "🎬 豆瓣实时热门电影" : "📺 豆瓣实时热门电视剧";
 
-    return `${title}\n\n${formattedItems}`;
-  } catch (error) {
-    console.error(`Error parsing Douban ${type} feed:`, error);
-    return "";
+      const formattedItems = feed.items
+        .slice(0, 10) // Get top 10 items
+        .map((item, index) => formatItem(item, index))
+        .join("\n\n");
+
+      return `${title}\n\n${formattedItems}`;
+    } catch (error) {
+      lastError = error as Error;
+      console.log(
+        `RSSHub endpoint ${endpointIndex + 1} failed, trying next...`
+      );
+      endpointIndex++;
+    }
   }
+
+  console.error(`Error parsing Douban ${type} feed:`, lastError);
+  return "";
 };
 
 export const getDoubanRankings = async (): Promise<string> => {

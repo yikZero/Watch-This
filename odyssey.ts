@@ -1,5 +1,6 @@
 import Parser from "rss-parser";
 import { cleanHtml } from "./utils.ts";
+import { RSS_URLS, getRssUrl } from "./rsshub.ts";
 
 type CustomFeed = {};
 type CustomItem = {
@@ -13,9 +14,6 @@ const parser: Parser<CustomFeed, CustomItem> = new Parser({
     item: ["description", "title", "pubDate"],
   },
 });
-
-const RSS_URL =
-  "https://sinrowa.com/telegram/channel/odysseyplus/searchQuery=%23TopOnOdyssey";
 
 const getSevenDaysAgo = () => {
   const date = new Date();
@@ -42,17 +40,30 @@ const formatContent = (content: string) => {
 };
 
 export const getFeedItems = async (): Promise<string> => {
-  try {
-    const feed = await parser.parseURL(RSS_URL);
+  let endpointIndex = 0;
+  let lastError: Error | null = null;
 
-    const formattedItems = feed.items
-      .filter((item) => item.pubDate && isWithinLastSevenDays(item.pubDate))
-      .map((item) => formatContent(item.description))
-      .join("\n\n");
+  while (endpointIndex < 3) {
+    // 最多尝试3次
+    try {
+      const feed = await parser.parseURL(
+        getRssUrl(RSS_URLS.odyssey, endpointIndex)
+      );
+      const formattedItems = feed.items
+        .filter((item) => item.pubDate && isWithinLastSevenDays(item.pubDate))
+        .map((item) => formatContent(item.description))
+        .join("\n\n");
 
-    return formattedItems;
-  } catch (error) {
-    console.error("Error parsing Odyssey+ feed:", error);
-    return "";
+      return formattedItems;
+    } catch (error) {
+      lastError = error as Error;
+      console.log(
+        `RSSHub endpoint ${endpointIndex + 1} failed, trying next...`
+      );
+      endpointIndex++;
+    }
   }
+
+  console.error("Error parsing Odyssey feed:", lastError);
+  return "";
 };
