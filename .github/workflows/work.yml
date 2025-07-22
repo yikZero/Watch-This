@@ -2,8 +2,8 @@ name: Weekly Top List
 
 on:
   workflow_dispatch:
-  # schedule:
-  #   - cron: "30 11 * * 5"
+  schedule:
+    - cron: "30 11 * * 5"
 
 jobs:
   BuildAndDeploy:
