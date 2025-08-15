@@ -1,15 +1,11 @@
-import { generateText } from "ai";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import dotenv from "dotenv";
 import { getFeedItems } from "./odyssey";
 import { sendTelegramNotification } from "./notification";
 import { getDoubanRankings } from "./douban";
+import { anthropic } from "@ai-sdk/anthropic";
+import { generateText } from "ai";
 
 dotenv.config();
-
-const openrouter = createOpenRouter({
-  apiKey: process.env.OPENROUTER_API_KEY,
-});
 
 async function extractFinalRanking(text) {
   console.log("📝 Extracting final ranking from generated text...");
@@ -75,9 +71,9 @@ async function generateRankingSummary() {
       } lines)`
     );
 
-    console.log("🤖 Generating ranking using OpenRouter...");
+    console.log("🤖 Generating ranking using Cluade...");
     const result = await generateText({
-      model: openrouter("anthropic/claude-3.7-sonnet"),
+      model: anthropic("claude-sonnet-4-20250514"),
       system: `You are a professional film and TV analyst specialized in entertainment rankings. Your task is to analyze weekly entertainment data and generate a ranking list of popular TV series and movies.`,
       prompt: `
       First, review the input data:
@@ -94,7 +90,7 @@ async function generateRankingSummary() {
 
         1. Data Analysis:
           - Exclude children's content from consideration.
-          - Works should appear in at least two data sources to be ranked.
+          - It is best to appear in two data sources. If there is no such data, Douban data will be displayed first.
           - Analyze ranking data using the Scoring Criteria.
 
         2. Scoring Criteria:
