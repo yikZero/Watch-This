@@ -1,6 +1,7 @@
 import Parser from "rss-parser";
 import { cleanHtml } from "./utils.ts";
-import { RSS_URLS, getRssUrl } from "./rsshub.ts";
+import { RSS_URLS } from "./rsshub.ts";
+import { fetchRssFeed } from "./rssFetcher.ts";
 
 type CustomFeed = {};
 type CustomItem = {
@@ -43,35 +44,27 @@ ${yearCountry}${genres}${directorActors}`;
 };
 
 const getFeedItems = async (type: "movie" | "tv"): Promise<string> => {
-  let endpointIndex = 0;
-  let lastError: Error | null = null;
+  try {
+    const feed = await fetchRssFeed(parser, RSS_URLS.douban[type]);
+    const title =
+      type === "movie" ? "🎬 豆瓣实时热门电影" : "📺 豆瓣实时热门电视剧";
 
-  while (endpointIndex < 3) {
-    // 最多尝试3次
-    try {
-      const feed = await parser.parseURL(
-        getRssUrl(RSS_URLS.douban[type], endpointIndex)
-      );
-      const title =
-        type === "movie" ? "🎬 豆瓣实时热门电影" : "📺 豆瓣实时热门电视剧";
+    const formattedItems = feed.items
+      .slice(0, 10) // Get top 10 items
+      .map((item, index) => formatItem(item, index))
+      .join("\n\n");
 
-      const formattedItems = feed.items
-        .slice(0, 10) // Get top 10 items
-        .map((item, index) => formatItem(item, index))
-        .join("\n\n");
-
-      return `${title}\n\n${formattedItems}`;
-    } catch (error) {
-      lastError = error as Error;
-      console.log(
-        `RSSHub endpoint ${endpointIndex + 1} failed, trying next...`
-      );
-      endpointIndex++;
+    if (!formattedItems) {
+      throw new Error(`Douban ${type} feed did not return any items`);
     }
-  }
 
-  console.error(`Error parsing Douban ${type} feed:`, lastError);
-  return "";
+    return `${title}\n\n${formattedItems}`;
+  } catch (error) {
+    console.error(`Error parsing Douban ${type} feed:`, error);
+    throw error instanceof Error
+      ? error
+      : new Error(`Unknown error while parsing Douban ${type} feed`);
+  }
 };
 
 export const getDoubanRankings = async (): Promise<string> => {

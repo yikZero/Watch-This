@@ -1,6 +1,7 @@
 import Parser from "rss-parser";
 import { cleanHtml } from "./utils.ts";
-import { RSS_URLS, getRssUrl } from "./rsshub.ts";
+import { RSS_URLS } from "./rsshub.ts";
+import { fetchRssFeed } from "./rssFetcher.ts";
 
 type CustomFeed = {};
 type CustomItem = {
@@ -40,30 +41,22 @@ const formatContent = (content: string) => {
 };
 
 export const getFeedItems = async (): Promise<string> => {
-  let endpointIndex = 0;
-  let lastError: Error | null = null;
+  try {
+    const feed = await fetchRssFeed(parser, RSS_URLS.odyssey);
+    const formattedItems = feed.items
+      .filter((item) => item.pubDate && isWithinLastSevenDays(item.pubDate))
+      .map((item) => formatContent(item.description))
+      .join("\n\n");
 
-  while (endpointIndex < 3) {
-    // 最多尝试3次
-    try {
-      const feed = await parser.parseURL(
-        getRssUrl(RSS_URLS.odyssey, endpointIndex)
-      );
-      const formattedItems = feed.items
-        .filter((item) => item.pubDate && isWithinLastSevenDays(item.pubDate))
-        .map((item) => formatContent(item.description))
-        .join("\n\n");
-
-      return formattedItems;
-    } catch (error) {
-      lastError = error as Error;
-      console.log(
-        `RSSHub endpoint ${endpointIndex + 1} failed, trying next...`
-      );
-      endpointIndex++;
+    if (!formattedItems) {
+      throw new Error("Odyssey feed returned no items within the last seven days");
     }
-  }
 
-  console.error("Error parsing Odyssey feed:", lastError);
-  return "";
+    return formattedItems;
+  } catch (error) {
+    console.error("Error parsing Odyssey feed:", error);
+    throw error instanceof Error
+      ? error
+      : new Error("Unknown error while parsing Odyssey feed");
+  }
 };

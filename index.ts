@@ -50,26 +50,40 @@ function getDateRange() {
   return range;
 }
 
+function ensureContent(name: string, content: string): string {
+  const trimmed = content.trim();
+  if (!trimmed) {
+    throw new Error(`${name} data is empty after fetching`);
+  }
+  return trimmed;
+}
+
+function describeContent(name: string, content: string) {
+  const nonEmptyLines = content
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean).length;
+  console.log(`✅ ${name} data fetched successfully (${nonEmptyLines} non-empty lines)`);
+}
+
 async function generateRankingSummary() {
   console.log("🚀 Starting ranking generation process...");
   try {
     const dateRange = getDateRange();
 
     console.log("🔍 Fetching Odyssey data...");
-    const odysseyRanking = await getFeedItems();
-    console.log(
-      `✅ Odyssey data fetched successfully (${
-        odysseyRanking.split("\n").length
-      } lines)`
+    const odysseyRanking = ensureContent(
+      "Odyssey",
+      await getFeedItems()
     );
+    describeContent("Odyssey", odysseyRanking);
 
     console.log("📚 Fetching Douban hot data...");
-    const doubanRanking = await getDoubanRankings();
-    console.log(
-      `✅ Douban hot data fetched successfully (${
-        doubanRanking.split("\n").length
-      } lines)`
+    const doubanRanking = ensureContent(
+      "Douban",
+      await getDoubanRankings()
     );
+    describeContent("Douban", doubanRanking);
 
     console.log("🤖 Generating ranking using Cluade...");
     const result = await generateText({

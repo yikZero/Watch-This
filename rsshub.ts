@@ -1,7 +1,8 @@
 export const RSSHUB_ENDPOINTS = [
-  "https://armjp.traekle.com",
   "https://rss.ygxz.in",
-  "http://115.133.57.85:9001",
+  "https://rsshub.pseudoyu.com",
+  "https://rsshub.rssforever.com",
+  "https://rsshub.yfi.moe",
 ];
 
 export const RSS_URLS = {
