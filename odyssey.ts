@@ -18,7 +18,7 @@ const parser: Parser<CustomFeed, CustomItem> = new Parser({
 
 const getSevenDaysAgo = () => {
   const date = new Date();
-  date.setDate(date.getDate() - 7);
+  date.setDate(date.getDate() - 14);
   return date;
 };
 
@@ -49,14 +49,14 @@ export const getFeedItems = async (): Promise<string> => {
       .join("\n\n");
 
     if (!formattedItems) {
-      throw new Error("Odyssey feed returned no items within the last seven days");
+      console.warn("⚠️ Odyssey feed returned no items within the last seven days");
+      return "";
     }
 
     return formattedItems;
   } catch (error) {
     console.error("Error parsing Odyssey feed:", error);
-    throw error instanceof Error
-      ? error
-      : new Error("Unknown error while parsing Odyssey feed");
+    console.warn("⚠️ Continuing without Odyssey data");
+    return "";
   }
 };

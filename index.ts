@@ -72,11 +72,14 @@ async function generateRankingSummary() {
     const dateRange = getDateRange();
 
     console.log("🔍 Fetching Odyssey data...");
-    const odysseyRanking = ensureContent(
-      "Odyssey",
-      await getFeedItems()
-    );
-    describeContent("Odyssey", odysseyRanking);
+    const odysseyRanking = await getFeedItems();
+    const hasOdysseyData = odysseyRanking.trim().length > 0;
+
+    if (hasOdysseyData) {
+      describeContent("Odyssey", odysseyRanking);
+    } else {
+      console.log("⚠️ No Odyssey data available, proceeding with Douban data only");
+    }
 
     console.log("📚 Fetching Douban hot data...");
     const doubanRanking = ensureContent(
@@ -93,7 +96,7 @@ async function generateRankingSummary() {
       First, review the input data:
 
         <odyssey_ranking>
-        ${odysseyRanking}
+        ${hasOdysseyData ? odysseyRanking : "No Odyssey data available this week"}
         </odyssey_ranking>
 
         <douban_ranking>
@@ -104,13 +107,15 @@ async function generateRankingSummary() {
 
         1. Data Analysis:
           - Exclude children's content from consideration.
-          - It is best to appear in two data sources. If there is no such data, Douban data will be displayed first.
+          ${hasOdysseyData
+            ? "- It is best to appear in two data sources. If there is no such data, Douban data will be displayed first."
+            : "- Only Douban data is available this week. Use Douban rankings as the primary source."}
           - Analyze ranking data using the Scoring Criteria.
 
         2. Scoring Criteria:
           - Douban ranking positions: Top 5 = 15 points, 6-10 = 10 points
           - Douban ratings above 9.0 add 5 points
-          - Odyssey ranking positions: Top 5 = 10 points, 6-10 = 5 points
+          ${hasOdysseyData ? "- Odyssey ranking positions: Top 5 = 10 points, 6-10 = 5 points" : ""}
           - Sum up weighted scores to determine the final ranking
 
         3. Ranking Generation:
@@ -134,7 +139,7 @@ async function generateRankingSummary() {
             3. [Movie 3]
             4. [Movie 4]
             5. [Movie 5]
-            
+
           - Use numerical prefixes (1.-5.) for each item
           - Only bold category headers using markdown *header*
           - Remove all markdown formatting from list items
