@@ -14,7 +14,7 @@
 
 - TypeScript
 - Node.js
-- OpenRouter AI API (Claude 3.7 Sonnet)
+- Anthropic AI SDK (Claude Sonnet 4.5)
 - Telegram Bot API
 - RSS Parser
 - Axios
@@ -38,7 +38,7 @@ pnpm install
    创建 `.env` 文件并添加以下配置：
 
 ```env
-OPENROUTER_API_KEY=your_openrouter_api_key
+ANTHROPIC_API_KEY=your_anthropic_api_key
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 TELEGRAM_CHAT_ID=your_telegram_chat_id
 ```
@@ -48,7 +48,7 @@ TELEGRAM_CHAT_ID=your_telegram_chat_id
 运行项目：
 
 ```bash
-pnpm tsx index.ts
+pnpm start
 ```
 
 ## 项目结构 📁
@@ -58,8 +58,13 @@ Watch-This/
 ├── index.ts          # 主程序入口
 ├── odyssey.ts        # Odyssey 数据抓取
 ├── douban.ts         # 豆瓣数据抓取
+├── rssFetcher.ts     # RSS 获取工具
+├── rsshub.ts         # RSSHub 配置
 ├── notification.ts   # Telegram 通知
 ├── utils.ts          # 工具函数
+├── types.ts          # TypeScript 类型定义
+├── constants.ts      # 常量配置
+├── tsconfig.json     # TypeScript 配置
 └── package.json      # 项目配置
 ```
 

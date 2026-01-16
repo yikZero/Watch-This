@@ -5,20 +5,20 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "tsx index.ts",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "yikZero",
   "license": "MIT",
   "packageManager": "pnpm@9.12.2",
   "dependencies": {
-    "@ai-sdk/anthropic": "^2.0.4",
-    "ai": "^5.0.14",
+    "@ai-sdk/anthropic": "^3.0.0",
+    "ai": "^6.0.0",
     "axios": "^1.7.9",
-    "date-fns": "^4.1.0",
     "dotenv": "^16.4.7",
     "rss-parser": "^3.13.0",
-    "zod": "^4.0.17"
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",

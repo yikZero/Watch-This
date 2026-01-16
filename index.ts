@@ -1,29 +1,49 @@
 import dotenv from "dotenv";
-import { getFeedItems } from "./odyssey";
-import { sendTelegramNotification } from "./notification";
-import { getDoubanRankings } from "./douban";
+import { getFeedItems } from "./odyssey.ts";
+import { sendTelegramNotification } from "./notification.ts";
+import { getDoubanRankings, getDoubanWeeklyRankings } from "./douban.ts";
 import { anthropic } from "@ai-sdk/anthropic";
-import { generateText } from "ai";
+import { generateText, Output, jsonSchema } from "ai";
+import { DateRange } from "./types.ts";
+import { AI_MODEL } from "./constants.ts";
 
 dotenv.config();
 
-async function extractFinalRanking(text) {
-  console.log("📝 Extracting final ranking from generated text...");
-  const regex = /<final_ranking>([\s\S]*?)<\/final_ranking>/;
-  const match = text.match(regex);
-  if (!match) {
-    console.warn("⚠️ No final ranking tags found in the generated text");
-    console.log("\nComplete AI response for debugging:");
-    console.log("-".repeat(50));
-    console.log(text);
-    console.log("-".repeat(50));
-    return "";
-  }
-  console.log("✅ Final ranking extracted successfully");
-  return match[1].trim();
+interface RankingOutput {
+  tvSeries: string[];
+  movies: string[];
 }
 
-function getDateRange() {
+const rankingSchema = jsonSchema<RankingOutput>({
+  type: "object",
+  properties: {
+    tvSeries: {
+      type: "array",
+      items: { type: "string" },
+      description: "Top 5 TV series names in Simplified Chinese",
+    },
+    movies: {
+      type: "array",
+      items: { type: "string" },
+      description: "Top 5 movie names in Simplified Chinese",
+    },
+  },
+  required: ["tvSeries", "movies"],
+  additionalProperties: false,
+});
+
+function formatRanking(ranking: RankingOutput): string {
+  const tvSection = ranking.tvSeries
+    .map((name, index) => `${index + 1}. ${name}`)
+    .join("\n");
+  const movieSection = ranking.movies
+    .map((name, index) => `${index + 1}. ${name}`)
+    .join("\n");
+
+  return `*📺 热门剧集*\n\n${tvSection}\n\n*🎬 热门电影*\n\n${movieSection}`;
+}
+
+function getDateRange(): DateRange {
   console.log("📅 Calculating date range for the weekly ranking...");
   const currentDate = new Date();
   const endDate = new Date(currentDate);
@@ -35,7 +55,7 @@ function getDateRange() {
   const startDate = new Date(endDate);
   startDate.setDate(startDate.getDate() - 7);
 
-  const formatDate = (date) => {
+  const formatDate = (date: Date): string => {
     const month = (date.getMonth() + 1).toString().padStart(2, "0");
     const day = date.getDate().toString().padStart(2, "0");
     return `${month}.${day}`;
@@ -58,114 +78,98 @@ function ensureContent(name: string, content: string): string {
   return trimmed;
 }
 
-function describeContent(name: string, content: string) {
+function describeContent(name: string, content: string): void {
   const nonEmptyLines = content
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean).length;
-  console.log(`✅ ${name} data fetched successfully (${nonEmptyLines} non-empty lines)`);
+  console.log(
+    `✅ ${name} data fetched successfully (${nonEmptyLines} non-empty lines)`
+  );
 }
 
-async function generateRankingSummary() {
+async function generateRankingSummary(): Promise<string> {
   console.log("🚀 Starting ranking generation process...");
   try {
     const dateRange = getDateRange();
 
-    console.log("🔍 Fetching Odyssey data...");
-    const odysseyRanking = await getFeedItems();
-    const hasOdysseyData = odysseyRanking.trim().length > 0;
+    console.log("🔍 Fetching data from sources...");
+    const [odysseyRanking, doubanRankingRaw, doubanWeeklyRaw] = await Promise.all([
+      getFeedItems(),
+      getDoubanRankings(),
+      getDoubanWeeklyRankings(),
+    ]);
 
+    const hasOdysseyData = odysseyRanking.trim().length > 0;
     if (hasOdysseyData) {
       describeContent("Odyssey", odysseyRanking);
     } else {
-      console.log("⚠️ No Odyssey data available, proceeding with Douban data only");
+      console.log(
+        "⚠️ No Odyssey data available, proceeding with Douban data only"
+      );
     }
 
-    console.log("📚 Fetching Douban hot data...");
-    const doubanRanking = ensureContent(
-      "Douban",
-      await getDoubanRankings()
-    );
-    describeContent("Douban", doubanRanking);
+    const doubanRanking = ensureContent("Douban Hot", doubanRankingRaw);
+    describeContent("Douban Hot", doubanRanking);
 
-    console.log("🤖 Generating ranking using Cluade...");
+    const hasWeeklyData = doubanWeeklyRaw.trim().length > 0;
+    if (hasWeeklyData) {
+      describeContent("Douban Weekly", doubanWeeklyRaw);
+    } else {
+      console.log("⚠️ No Douban Weekly data available");
+    }
+
+    console.log("🤖 Generating ranking using Claude...");
+    const systemPrompt = `You are a professional film and TV analyst specialized in entertainment rankings. Your task is to analyze weekly entertainment data and generate a ranking list of popular TV series and movies.`;
+    const userPrompt = `Analyze the following entertainment data and generate rankings:
+
+<odyssey_ranking>
+${hasOdysseyData ? odysseyRanking : "No Odyssey data available this week"}
+</odyssey_ranking>
+
+<douban_hot_ranking>
+${doubanRanking}
+</douban_hot_ranking>
+
+<douban_weekly_ranking>
+${hasWeeklyData ? doubanWeeklyRaw : "No Douban Weekly data available this week"}
+</douban_weekly_ranking>
+
+Instructions:
+1. Exclude children's content from consideration.
+2. Prefer works that appear in multiple data sources.
+3. Weekly rankings (口碑榜) indicate quality and sustained popularity.
+
+Scoring Criteria:
+- Douban Hot ranking (实时热门, primary): Top 5 = 20 points, 6-10 = 15 points
+- Douban ratings above 9.0 add 5 bonus points
+${hasWeeklyData ? "- Douban Weekly ranking (口碑榜, secondary): Top 5 = 15 points, 6-10 = 10 points" : ""}
+${hasOdysseyData ? "- Odyssey ranking (reference only): Top 5 = 5 points, 6-10 = 3 points" : ""}
+- Calculate weighted scores to determine the final ranking
+
+Generate:
+- tvSeries: Top 5 TV series names (in Simplified Chinese)
+- movies: Top 5 movie names (in Simplified Chinese)`;
+
     const result = await generateText({
-      model: anthropic("claude-sonnet-4-20250514"),
-      system: `You are a professional film and TV analyst specialized in entertainment rankings. Your task is to analyze weekly entertainment data and generate a ranking list of popular TV series and movies.`,
-      prompt: `
-      First, review the input data:
-
-        <odyssey_ranking>
-        ${hasOdysseyData ? odysseyRanking : "No Odyssey data available this week"}
-        </odyssey_ranking>
-
-        <douban_ranking>
-        ${doubanRanking}
-        </douban_ranking>
-
-        Instructions:
-
-        1. Data Analysis:
-          - Exclude children's content from consideration.
-          ${hasOdysseyData
-            ? "- It is best to appear in two data sources. If there is no such data, Douban data will be displayed first."
-            : "- Only Douban data is available this week. Use Douban rankings as the primary source."}
-          - Analyze ranking data using the Scoring Criteria.
-
-        2. Scoring Criteria:
-          - Douban ranking positions: Top 5 = 15 points, 6-10 = 10 points
-          - Douban ratings above 9.0 add 5 points
-          ${hasOdysseyData ? "- Odyssey ranking positions: Top 5 = 10 points, 6-10 = 5 points" : ""}
-          - Sum up weighted scores to determine the final ranking
-
-        3. Ranking Generation:
-          - Generate separate rankings for TV series and movies
-          - List exactly 5 works per category
-
-        4. Output Formatting:
-          - Use the following template, writing in Simplified Chinese:
-            *📺 热门剧集*
-
-            1. [TV Series 1]
-            2. [TV Series 2]
-            3. [TV Series 3]
-            4. [TV Series 4]
-            5. [TV Series 5]
-
-            *🎬 热门电影*
-
-            1. [Movie 1]
-            2. [Movie 2]
-            3. [Movie 3]
-            4. [Movie 4]
-            5. [Movie 5]
-
-          - Use numerical prefixes (1.-5.) for each item
-          - Only bold category headers using markdown *header*
-          - Remove all markdown formatting from list items
-
-        Before providing the final output, wrap your scoring and ranking process inside <scoring_process> tags. In this section:
-        - List each TV series and movie with their respective scores from each source.
-        - Show your calculations for the weighted scores.
-        - Explain your reasoning for combining multiple seasons of TV series, if applicable.
-        - Demonstrate how you arrived at the final rankings.
-        This will help ensure accuracy and alignment with the given criteria. It's OK for this section to be quite long.
-
-        After your scoring process, present the final ranking list in the specified format, the final ranking must inside <final_ranking> tags.
-
-        Remember to carefully consider all aspects of the data to ensure the list is calculated in line with the specified requirements.`,
+      model: anthropic(AI_MODEL),
+      experimental_output: Output.object({ schema: rankingSchema }),
+      system: systemPrompt,
+      prompt: userPrompt,
     });
     console.log("✅ Ranking generated successfully");
 
-    console.log("\n📄 Complete AI Response:");
+    const output = result.experimental_output;
+    if (!output) {
+      throw new Error("Failed to generate structured ranking output");
+    }
+
+    console.log("\n📄 Generated Ranking:");
     console.log("=".repeat(50));
-    console.log(result.text);
+    console.log(JSON.stringify(output, null, 2));
     console.log("=".repeat(50));
 
-    const finalRanking = await extractFinalRanking(result.text);
-    if (!finalRanking) {
-      throw new Error("Failed to extract final ranking from generated text");
-    }
+    const finalRanking = formatRanking(output);
 
     const fullContent = `💥 *本周影视热榜（${dateRange.start} - ${dateRange.end}）*\n\n${finalRanking}\n\n#周末愉快 #影视热榜`;
 
@@ -180,11 +184,13 @@ async function generateRankingSummary() {
     return fullContent;
   } catch (error) {
     console.error("❌ Error in generateRankingSummary:", error);
-    console.error("Error details:", {
-      message: error.message,
-      stack: error.stack,
-      cause: error.cause,
-    });
+    if (error instanceof Error) {
+      console.error("Error details:", {
+        message: error.message,
+        stack: error.stack,
+        cause: error.cause,
+      });
+    }
     throw error;
   }
 }

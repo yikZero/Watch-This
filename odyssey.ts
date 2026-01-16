@@ -2,30 +2,25 @@ import Parser from "rss-parser";
 import { cleanHtml } from "./utils.ts";
 import { RSS_URLS } from "./rsshub.ts";
 import { fetchRssFeed } from "./rssFetcher.ts";
+import { RssFeed, RssFeedItem } from "./types.ts";
+import { DAYS_LOOKBACK } from "./constants.ts";
 
-type CustomFeed = {};
-type CustomItem = {
-  description: string;
-  title: string;
-  pubDate: string;
-};
-
-const parser: Parser<CustomFeed, CustomItem> = new Parser({
+const parser: Parser<RssFeed, RssFeedItem> = new Parser({
   customFields: {
     item: ["description", "title", "pubDate"],
   },
 });
 
-const getSevenDaysAgo = () => {
+const getDaysAgo = (days: number = DAYS_LOOKBACK): Date => {
   const date = new Date();
-  date.setDate(date.getDate() - 14);
+  date.setDate(date.getDate() - days);
   return date;
 };
 
-const isWithinLastSevenDays = (pubDate: string) => {
-  const sevenDaysAgo = getSevenDaysAgo();
+const isWithinDateRange = (pubDate: string): boolean => {
+  const cutoffDate = getDaysAgo();
   const itemDate = new Date(pubDate);
-  return itemDate >= sevenDaysAgo;
+  return itemDate >= cutoffDate;
 };
 
 const formatContent = (content: string) => {
@@ -44,7 +39,7 @@ export const getFeedItems = async (): Promise<string> => {
   try {
     const feed = await fetchRssFeed(parser, RSS_URLS.odyssey);
     const formattedItems = feed.items
-      .filter((item) => item.pubDate && isWithinLastSevenDays(item.pubDate))
+      .filter((item) => item.pubDate && isWithinDateRange(item.pubDate))
       .map((item) => formatContent(item.description))
       .join("\n\n");
 

@@ -1,10 +1,5 @@
 import axios from "axios";
-
-// 定义按钮接口
-interface TelegramButton {
-  text: string;
-  url: string;
-}
+import { TelegramButton, TelegramRequestData } from "./types.ts";
 
 export async function sendBarkNotification(title: string, content: string) {
   const BARK_KEY = process.env.BARK_KEY;
@@ -46,7 +41,7 @@ export async function sendTelegramNotification(
       return;
     }
 
-    const requestData: any = {
+    const requestData: TelegramRequestData = {
       chat_id: TELEGRAM_CHAT_ID,
       text: message,
       parse_mode: "Markdown",
