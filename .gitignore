@@ -3,4 +3,3 @@ node_modules
 
 # macOS-specific files
 .DS_Store
-pnpm-lock.yaml

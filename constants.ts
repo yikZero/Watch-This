@@ -1,5 +1,5 @@
 // AI Configuration
-export const AI_MODEL = "claude-sonnet-4-5";
+export const AI_MODEL = "anthropic/claude-sonnet-4.6";
 
 // Time Constants
 export const DAYS_LOOKBACK = 14;

@@ -13,6 +13,29 @@ export interface DateRange {
   end: string;
 }
 
+// Douban API Types
+export interface DoubanSearchResult {
+  items: Array<{
+    target: {
+      id: string;
+      title: string;
+    };
+  }>;
+}
+
+export interface DoubanMovieDetail {
+  id: string;
+  title: string;
+  rating: {
+    value: number;
+  };
+}
+
+export interface EnrichedRankingItem {
+  name: string;
+  rating?: number;
+}
+
 // Telegram Types
 export interface TelegramButton {
   text: string;

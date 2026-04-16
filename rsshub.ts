@@ -9,10 +9,12 @@ export const RSS_URLS = {
   douban: {
     movie: "/douban/list/movie_real_time_hotest",
     tv: "/douban/list/tv_real_time_hotest",
+    tvKorean: "/douban/list/tv_korean",
   },
   doubanWeekly: {
     movie: "/douban/movie/weekly/movie_weekly_best",
     tv: "/douban/movie/weekly/tv_chinese_best_weekly",
+    tvGlobal: "/douban/movie/weekly/tv_global_best_weekly",
   },
   odyssey: "/telegram/channel/odysseyplus/searchQuery=%23TopOnOdyssey",
 };

@@ -4,8 +4,8 @@
 
 ## 功能特点 ✨
 
-- 自动抓取 Odyssey 和豆瓣的影视剧数据
-- 使用 AI 智能分析生成综合排名
+- 自动抓取 Odyssey 和豆瓣（实时热门、华语口碑、全球口碑、热门韩剧）的影视剧数据
+- 使用 AI 智能分析生成综合排名（面向中文受众，覆盖韩剧 / 小甜剧）
 - 支持电视剧和电影分类排行
 - 自动发送 Telegram 通知
 - 每周自动更新榜单
@@ -13,8 +13,8 @@
 ## 技术栈 🛠
 
 - TypeScript
-- Node.js
-- Anthropic AI SDK (Claude Sonnet 4.5)
+- Bun
+- Vercel AI SDK 6 + OpenRouter (Claude Sonnet 4.6)
 - Telegram Bot API
 - RSS Parser
 - Axios
@@ -31,14 +31,14 @@ cd Watch-This
 2. 安装依赖
 
 ```bash
-pnpm install
+bun install
 ```
 
 3. 配置环境变量
    创建 `.env` 文件并添加以下配置：
 
 ```env
-ANTHROPIC_API_KEY=your_anthropic_api_key
+OPENROUTER_API_KEY=your_openrouter_api_key
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 TELEGRAM_CHAT_ID=your_telegram_chat_id
 ```
@@ -48,7 +48,7 @@ TELEGRAM_CHAT_ID=your_telegram_chat_id
 运行项目：
 
 ```bash
-pnpm start
+bun start
 ```
 
 ## 项目结构 📁
@@ -72,17 +72,23 @@ Watch-This/
 
 1. 数据来源：
 
-   - Odyssey 排行榜
-   - 豆瓣热门榜单
+   - Odyssey 排行榜（可选）
+   - 豆瓣实时热门电影 / 电视剧
+   - 豆瓣华语口碑剧集榜（可选）
+   - 豆瓣全球口碑剧集榜（可选，覆盖韩 / 日 / 美剧）
+   - 豆瓣热门韩剧榜（可选）
 
 2. 评分标准：
 
-   - 豆瓣排名：前 5 名 = 15 分，6-10 名 = 10 分
+   - 豆瓣实时热门：前 5 = 20 分，6-10 = 15 分
    - 豆瓣评分 > 9.0：额外加 5 分
-   - Odyssey 排名：前 5 名 = 10 分，6-10 名 = 5 分
+   - 豆瓣华语口碑 / 热门韩剧：前 5 = 15 分，6-10 = 10 分
+   - 豆瓣全球口碑：前 5 = 10 分，6-10 = 5 分
+   - Odyssey 排名（参考）：前 5 = 5 分，6-10 = 3 分
+   - Prompt 显式偏好韩剧 / 小甜剧 / 华语剧，弱化欧美超英和 HBO prestige TV
 
 3. 排名规则：
-   - 作品需至少出现在两个数据源中
+   - 倾向于出现在多个数据源中的作品
    - 分别生成电视剧和电影排行榜
    - 每个类别展示前 5 名作品
 
