@@ -1,28 +1,6 @@
 import axios from "axios";
 import { TelegramButton, TelegramRequestData } from "./types.ts";
 
-export async function sendBarkNotification(title: string, content: string) {
-  const BARK_KEY = process.env.BARK_KEY;
-  if (!BARK_KEY) {
-    console.error("BARK_KEY not found in environment variables");
-    return;
-  }
-
-  try {
-    const response = await axios.post(`https://api.day.app/${BARK_KEY}`, {
-      title: title,
-      body: content,
-      group: "排行榜更新",
-    });
-
-    if (response.status === 200) {
-      console.log("Bark notification sent successfully");
-    }
-  } catch (error) {
-    console.error("Failed to send Bark notification:", error);
-  }
-}
-
 export async function sendTelegramNotification(
   message: string,
   buttons?: TelegramButton[],
