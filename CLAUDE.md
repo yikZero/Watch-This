@@ -17,8 +17,7 @@ This is a **one-shot CLI script**, not a long-running service. `index.ts` runs t
 ### Pipeline (all in `index.ts`)
 
 1. **Compute date range** — `getDateRange()` walks forward to the next Friday, then back 7 days. Used only for the human-readable header in the Telegram message.
-2. **Fetch sources in parallel** — five feeds via `Promise.all` (all routed through `fetchRssFeed`'s RSSHub fallback):
-   - `getFeedItems()` (`odyssey.ts`) — Odyssey+ Telegram channel. **Optional**, failures → `""`.
+2. **Fetch sources in parallel** — four Douban feeds via `Promise.all` (all routed through `fetchRssFeed`'s RSSHub fallback):
    - `getDoubanRankings()` (`douban.ts`) — 豆瓣实时热门 movies + TV. **Required**, throws if empty.
    - `getDoubanWeeklyRankings()` — 豆瓣一周口碑电影榜 + 华语口碑剧集榜. **Optional**.
    - `getDoubanKoreanHot()` — 豆瓣热门韩剧. **Optional**.

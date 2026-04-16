@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { generateText, Output } from "ai";
-import { getFeedItems } from "./odyssey.ts";
 import { sendTelegramNotification } from "./notification.ts";
 import {
   getDoubanRankings,
@@ -98,25 +97,16 @@ async function generateRankingSummary(): Promise<string> {
 
     console.log("🔍 Fetching data from sources...");
     const [
-      odysseyRanking,
       doubanRankingRaw,
       doubanWeeklyRaw,
       doubanKoreanRaw,
       doubanGlobalWeeklyRaw,
     ] = await Promise.all([
-      getFeedItems(),
       getDoubanRankings(),
       getDoubanWeeklyRankings(),
       getDoubanKoreanHot(),
       getDoubanGlobalWeeklyRankings(),
     ]);
-
-    const hasOdysseyData = odysseyRanking.trim().length > 0;
-    if (hasOdysseyData) {
-      describeContent("Odyssey", odysseyRanking);
-    } else {
-      console.log("⚠️ No Odyssey data available");
-    }
 
     const doubanRanking = ensureContent("Douban Hot", doubanRankingRaw);
     describeContent("Douban Hot", doubanRanking);
@@ -152,10 +142,6 @@ async function generateRankingSummary(): Promise<string> {
 Do your scoring silently. Respond with ONLY the JSON object conforming to the provided schema — no preamble, no explanation of your calculations, no chain-of-thought text. The tvSeries and movies arrays must contain exactly 5 plain title strings each, in ranked order, without numbering, scoring, or commentary appended.`;
 
     const userPrompt = `Analyze the following entertainment data and generate rankings:
-
-<odyssey_ranking>
-${hasOdysseyData ? odysseyRanking : "No Odyssey data available this week"}
-</odyssey_ranking>
 
 <douban_hot_ranking>
 ${doubanRanking}
@@ -194,7 +180,6 @@ Scoring Criteria:
 ${hasWeeklyData ? "- Douban Weekly Chinese (华语口碑): Top 5 = 15 points, 6-10 = 10 points" : ""}
 ${hasKoreanData ? "- Douban Korean Hot (韩剧热门): Top 5 = 15 points, 6-10 = 10 points" : ""}
 ${hasGlobalWeeklyData ? "- Douban Weekly Global (全球口碑): Top 5 = 10 points, 6-10 = 5 points" : ""}
-${hasOdysseyData ? "- Odyssey ranking (reference only): Top 5 = 5 points, 6-10 = 3 points" : ""}
 - Calculate weighted scores to determine the final ranking
 
 Generate:
