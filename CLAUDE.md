@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `bun start` (or `bun run index.ts`) — runs the one-shot pipeline
 - `bun run typecheck` — `tsc --noEmit`; the only way to validate code since there are no tests
 
-Bun runs `.ts` natively and auto-loads `.env`; there is no build step and no `dotenv` import. Requires `.env` with `OPENROUTER_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (and optional `BARK_KEY`). See `.env.example`.
+Bun runs `.ts` natively and auto-loads `.env`; there is no build step and no `dotenv` import. Requires `.env` with `OPENROUTER_API_KEY`, `SLACK_BOT_TOKEN`, `SLACK_CHANNEL`. See `.env.example`.
 
 ## Architecture
 
@@ -16,15 +16,15 @@ This is a **one-shot CLI script**, not a long-running service. `index.ts` runs t
 
 ### Pipeline (all in `index.ts`)
 
-1. **Compute date range** — `getDateRange()` walks forward to the next Friday, then back 7 days. Used only for the human-readable header in the Telegram message.
+1. **Compute date range** — `getDateRange()` walks forward to the next Friday, then back 7 days. Used only for the human-readable header in the Slack message.
 2. **Fetch sources in parallel** — four Douban feeds via `Promise.all` (all routed through `fetchRssFeed`'s RSSHub fallback):
    - `getDoubanRankings()` (`douban.ts`) — 豆瓣实时热门 movies + TV. **Required**, throws if empty.
    - `getDoubanWeeklyRankings()` — 豆瓣一周口碑电影榜 + 华语口碑剧集榜. **Optional**.
    - `getDoubanKoreanHot()` — 豆瓣热门韩剧. **Optional**.
    - `getDoubanGlobalWeeklyRankings()` — 豆瓣全球口碑剧集榜 (captures quality K/日/美剧). **Optional**.
 3. **AI ranking** — `generateText` from `ai` with `@openrouter/ai-sdk-provider`, using the modern `output: Output.object({ schema })` API (Zod schema — *not* `experimental_output` or `jsonSchema()`). Result accessed as `result.output`. Model is `AI_MODEL` from `constants.ts` (`google/gemini-3-flash-preview`). Prompt conditionally includes scoring rules only for data sources that actually returned data — extend this pattern when adding new sources.
-4. **Enrich** — `enrichRankingItems` in `doubanApi.ts` looks up each title via Douban's Frodo API to attach the rating. Serial with a 300ms delay between requests. **Note**: `searchDouban` iterates the top-5 candidates and only accepts ones whose normalized title matches the queried keyword (via `titleMatches` — bidirectional `includes` after normalizing punctuation/whitespace). This guards against Douban's fuzzy search returning bogus matches for mis-spelled titles. Non-matches degrade to `{ name }` with a warning log.
-5. **Format & send** — `formatRanking` builds Markdown; `sendTelegramNotification` posts with an inline button.
+4. **Enrich** — `enrichRankingItems` in `doubanApi.ts` looks up each title via Douban's Frodo API to attach the rating. Serial with a 300ms delay between requests. `searchDouban` iterates the top-5 candidates and only accepts a matching normalized title (`titleMatches`), guarding against Douban's fuzzy mis-matches. Non-matches degrade to `{ name }` with a warning log.
+5. **Format & send** — `buildRankingBlocks` in `index.ts` constructs Block Kit (header / context / divider / rich_text). Each ranked item is rendered as plain text `{name}  {rating}` — no inline links, no Infuse deep links. We tried `infuse://series/{tmdb}` library deep links (lands on TMDB placeholder in Direct Mode), `play?url=` direct stream (returns `com.firecore.media.player error 1`), and an icon-only `▶` link variant (still leaked the `infuse://` URL into iOS Slack push previews). The plain-text rendering keeps push previews clean, which the user prioritized over click-to-open. `sendSlackNotification` posts via `chat.postMessage` with `unfurl_links: false`.
 
 ### RSSHub endpoint fallback
 
@@ -40,4 +40,4 @@ The Frodo endpoints (`frodo.douban.com/api/v2`) are reverse-engineered from Doub
 - **Optional vs. required sources**: everything except Douban Hot degrades to `""` on failure. `index.ts` branches on `hasXxxData` flags to alter the prompt — preserve this pattern if adding new sources, and add the corresponding scoring line only inside the same conditional.
 - **Source helpers in `douban.ts`**: all go through the internal `fetchSection(path, title, opts)` helper. Add a new source by exporting a one-liner that calls `fetchSection(...)` with the right RSS path + section title.
 - **Model selection**: change `AI_MODEL` in `constants.ts`, not in `index.ts`. The slug is an OpenRouter model identifier (e.g. `anthropic/claude-sonnet-4.6`, `google/gemini-3-flash-preview`). Current default: Claude Sonnet 4.6 — chosen for instruction-following consistency on the scoring rules.
-- **Output language**: titles in the AI output must be Simplified Chinese (the Zod schema's `describe()` enforces this; the Telegram template also uses Chinese).
+- **Output language**: titles in the AI output must be Simplified Chinese (the Zod schema's `describe()` enforces this; the Slack template also uses Chinese).

@@ -1,14 +1,19 @@
 import { z } from "zod";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { generateText, Output } from "ai";
-import { sendTelegramNotification } from "./notification.ts";
+import { sendSlackNotification } from "./notification.ts";
 import {
   getDoubanRankings,
   getDoubanWeeklyRankings,
   getDoubanKoreanHot,
   getDoubanGlobalWeeklyRankings,
 } from "./douban.ts";
-import { DateRange, EnrichedRankingItem } from "./types.ts";
+import {
+  DateRange,
+  EnrichedRankingItem,
+  SlackBlock,
+  RichTextSection,
+} from "./types.ts";
 import { AI_MODEL } from "./constants.ts";
 import { enrichRankingItems } from "./doubanApi.ts";
 
@@ -26,23 +31,69 @@ interface EnrichedRanking {
   movies: EnrichedRankingItem[];
 }
 
-function formatEnrichedItem(item: EnrichedRankingItem, index: number): string {
-  let line = `${index + 1}. ${item.name}`;
+function buildItemSection(item: EnrichedRankingItem): RichTextSection {
+  const elements: RichTextSection["elements"] = [
+    { type: "text", text: item.name },
+  ];
+
   if (item.rating) {
-    line += ` ${item.rating}`;
+    elements.push(
+      { type: "text", text: "  " },
+      { type: "text", text: String(item.rating) }
+    );
   }
-  return line;
+  return { type: "rich_text_section", elements };
 }
 
-function formatRanking(ranking: EnrichedRanking): string {
-  const tvSection = ranking.tvSeries
-    .map((item, index) => formatEnrichedItem(item, index))
-    .join("\n");
-  const movieSection = ranking.movies
-    .map((item, index) => formatEnrichedItem(item, index))
-    .join("\n");
+function buildCategoryBlock(
+  title: string,
+  items: EnrichedRankingItem[]
+): SlackBlock {
+  return {
+    type: "rich_text",
+    elements: [
+      {
+        type: "rich_text_section",
+        elements: [{ type: "text", text: title, style: { bold: true } }],
+      },
+      {
+        type: "rich_text_list",
+        style: "ordered",
+        elements: items.map(buildItemSection),
+      },
+    ],
+  };
+}
 
-  return `*📺 热门剧集*\n\n${tvSection}\n\n*🎬 热门电影*\n\n${movieSection}`;
+function buildRankingBlocks(
+  ranking: EnrichedRanking,
+  dateRange: DateRange
+): SlackBlock[] {
+  return [
+    {
+      type: "header",
+      text: { type: "plain_text", text: "💥 本周影视热榜", emoji: true },
+    },
+    {
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: `*${dateRange.start} – ${dateRange.end}*`,
+        },
+      ],
+    },
+    { type: "divider" },
+    buildCategoryBlock("📺 热门剧集", ranking.tvSeries),
+    { type: "divider" },
+    buildCategoryBlock("🎬 热门电影", ranking.movies),
+  ];
+}
+
+function buildFallbackText(ranking: EnrichedRanking, dateRange: DateRange): string {
+  const tv = ranking.tvSeries.map((i) => i.name).join(" · ");
+  const movies = ranking.movies.map((i) => i.name).join(" · ");
+  return `💥 本周影视热榜（${dateRange.start} - ${dateRange.end}）\n📺 ${tv}\n🎬 ${movies}`;
 }
 
 function getDateRange(): DateRange {
@@ -207,7 +258,7 @@ Generate:
     console.log(JSON.stringify(output, null, 2));
     console.log("=".repeat(50));
 
-    console.log("🔎 Enriching rankings with Douban API data...");
+    console.log("🔎 Enriching rankings with Douban data...");
     const [enrichedTv, enrichedMovies] = await Promise.all([
       enrichRankingItems(output.tvSeries),
       enrichRankingItems(output.movies),
@@ -219,19 +270,13 @@ Generate:
       movies: enrichedMovies,
     };
 
-    const finalRanking = formatRanking(enrichedRanking);
+    const blocks = buildRankingBlocks(enrichedRanking, dateRange);
+    const fallbackText = buildFallbackText(enrichedRanking, dateRange);
 
-    const fullContent = `💥 *本周影视热榜（${dateRange.start} - ${dateRange.end}）*\n\n${finalRanking}\n\n#周末愉快 #影视热榜`;
+    console.log("📤 Sending notification to Slack...");
+    await sendSlackNotification({ text: fallbackText, blocks });
 
-    console.log("📤 Sending notification to Telegram...");
-    await sendTelegramNotification(fullContent, [
-      {
-        text: "开始追剧",
-        url: "https://apps.apple.com/us/app/infuse-video-player/id1136220934",
-      },
-    ]);
-
-    return fullContent;
+    return fallbackText;
   } catch (error) {
     console.error("❌ Error in generateRankingSummary:", error);
     if (error instanceof Error) {

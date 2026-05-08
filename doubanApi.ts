@@ -8,7 +8,7 @@ const DOUBAN_HEADERS = {
 };
 
 const normalizeTitle = (s: string): string =>
-  s.replace(/[\s\u3000·•・:：,，.。!！?？"'"""''（）()\[\]【】-]/g, "").toLowerCase();
+  s.replace(/[\s　·•・:：,，.。!！?？"'"""''（）()\[\]【】-]/g, "").toLowerCase();
 
 function titleMatches(queried: string, candidate: string): boolean {
   const q = normalizeTitle(queried);
@@ -79,7 +79,6 @@ export async function enrichRankingItems(names: string[]): Promise<EnrichedRanki
   const results: EnrichedRankingItem[] = [];
   for (const name of names) {
     results.push(await enrichRankingItem(name));
-    // Small delay to avoid hitting Douban API rate limits
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
   return results;

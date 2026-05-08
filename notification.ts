@@ -1,50 +1,60 @@
 import axios from "axios";
-import { TelegramButton, TelegramRequestData } from "./types.ts";
+import { SlackBlock, SlackPostMessageRequest, SlackPostMessageResponse } from "./types.ts";
 
-export async function sendTelegramNotification(
-  message: string,
-  buttons?: TelegramButton[],
-  chatId?: string | number
-) {
-  const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-  if (!TELEGRAM_BOT_TOKEN) {
-    console.error("TELEGRAM_BOT_TOKEN not found in environment variables");
+interface SendSlackNotificationOptions {
+  text: string;
+  blocks?: SlackBlock[];
+  channel?: string;
+  unfurlLinks?: boolean;
+}
+
+export async function sendSlackNotification({
+  text,
+  blocks,
+  channel,
+  unfurlLinks = false,
+}: SendSlackNotificationOptions) {
+  const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
+  if (!SLACK_BOT_TOKEN) {
+    console.error("SLACK_BOT_TOKEN not found in environment variables");
+    return;
+  }
+
+  const SLACK_CHANNEL = channel || process.env.SLACK_CHANNEL;
+  if (!SLACK_CHANNEL) {
+    console.error("SLACK_CHANNEL not found");
     return;
   }
 
   try {
-    const TELEGRAM_CHAT_ID = chatId || process.env.TELEGRAM_CHAT_ID;
-    if (!TELEGRAM_CHAT_ID) {
-      console.error("TELEGRAM_CHAT_ID not found");
-      return;
-    }
-
-    const requestData: TelegramRequestData = {
-      chat_id: TELEGRAM_CHAT_ID,
-      text: message,
-      parse_mode: "Markdown",
+    const requestData: SlackPostMessageRequest = {
+      channel: SLACK_CHANNEL,
+      text,
+      unfurl_links: unfurlLinks,
+      unfurl_media: unfurlLinks,
     };
 
-    if (buttons && buttons.length > 0) {
-      requestData.reply_markup = {
-        inline_keyboard: [
-          buttons.map((button) => ({
-            text: button.text,
-            url: button.url,
-          })),
-        ],
-      };
+    if (blocks && blocks.length > 0) {
+      requestData.blocks = blocks;
     }
 
-    const response = await axios.post(
-      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
-      requestData
+    const response = await axios.post<SlackPostMessageResponse>(
+      "https://slack.com/api/chat.postMessage",
+      requestData,
+      {
+        headers: {
+          Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+          "Content-Type": "application/json; charset=utf-8",
+        },
+      }
     );
 
-    if (response.status === 200) {
-      console.log("✅ Telegram notification sent successfully");
+    if (response.data.ok) {
+      console.log("✅ Slack notification sent successfully");
+    } else {
+      console.error("❌ Slack API returned error:", response.data.error);
     }
   } catch (error) {
-    console.error("❌ Failed to send Telegram notification:", error);
+    console.error("❌ Failed to send Slack notification:", error);
   }
 }
