@@ -7,7 +7,7 @@
 - 自动抓取豆瓣多榜单（实时热门、华语口碑、全球口碑、热门韩剧）的影视剧数据
 - 使用 AI 智能分析生成综合排名（面向中文受众，覆盖韩剧 / 小甜剧）
 - 支持电视剧和电影分类排行
-- 自动发送 Slack 通知
+- 自动发送 Telegram 群组 topic 通知
 - 每周自动更新榜单
 
 ## 技术栈 🛠
@@ -15,7 +15,7 @@
 - TypeScript
 - Bun
 - Vercel AI SDK 6 + OpenRouter (Claude Sonnet 4.6)
-- Slack Web API
+- Telegram Bot API
 - RSS Parser
 - Axios
 
@@ -39,9 +39,15 @@ bun install
 
 ```env
 OPENROUTER_API_KEY=your_openrouter_api_key
-SLACK_BOT_TOKEN=your_slack_bot_token
-SLACK_CHANNEL=your_slack_channel_id
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+TELEGRAM_CHAT_ID=your_telegram_group_chat_id
+TELEGRAM_MESSAGE_THREAD_ID=your_telegram_topic_message_thread_id
 ```
+
+Telegram 群组 topic 需要同时指定：
+
+- `TELEGRAM_CHAT_ID`：群组 / supergroup 的 chat id，通常是 `-100...` 开头。
+- `TELEGRAM_MESSAGE_THREAD_ID`：目标 topic 的 message thread id。不填时会发到群组默认位置。
 
 ## 使用方法 🚀
 
@@ -60,7 +66,7 @@ Watch-This/
 ├── douban.ts         # 豆瓣数据抓取
 ├── rssFetcher.ts     # RSS 获取工具
 ├── rsshub.ts         # RSSHub 配置
-├── notification.ts   # Slack 通知
+├── notification.ts   # Telegram 通知
 ├── utils.ts          # 工具函数
 ├── types.ts          # TypeScript 类型定义
 ├── constants.ts      # 常量配置
