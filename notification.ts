@@ -4,6 +4,7 @@ interface SendTelegramNotificationOptions {
   text: string;
   chatId?: string;
   messageThreadId?: string | number;
+  parseMode?: "HTML" | "MarkdownV2" | "Markdown";
   disableLinkPreview?: boolean;
 }
 
@@ -11,6 +12,7 @@ interface TelegramSendMessageRequest {
   chat_id: string;
   text: string;
   message_thread_id?: number;
+  parse_mode?: "HTML" | "MarkdownV2" | "Markdown";
   link_preview_options?: {
     is_disabled: boolean;
   };
@@ -38,6 +40,7 @@ export async function sendTelegramNotification({
   text,
   chatId,
   messageThreadId,
+  parseMode,
   disableLinkPreview = true,
 }: SendTelegramNotificationOptions) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -61,6 +64,10 @@ export async function sendTelegramNotification({
 
   if (targetMessageThreadId !== undefined) {
     requestData.message_thread_id = targetMessageThreadId;
+  }
+
+  if (parseMode) {
+    requestData.parse_mode = parseMode;
   }
 
   if (disableLinkPreview) {
