@@ -26,9 +26,16 @@ interface EnrichedRanking {
   movies: EnrichedRankingItem[];
 }
 
+function escapeTelegramHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 function formatRankingItem(item: EnrichedRankingItem, index: number): string {
   const rating = item.rating ? `  ${item.rating}` : "";
-  return `${index + 1}. ${item.name}${rating}`;
+  return `${index + 1}. ${escapeTelegramHtml(item.name)}${rating}`;
 }
 
 function buildNotificationText(
@@ -39,12 +46,12 @@ function buildNotificationText(
   const movies = ranking.movies.map(formatRankingItem).join("\n");
 
   return [
-    `💥 本周影视热榜（${dateRange.start} - ${dateRange.end}）`,
+    `<b>💥 本周影视热榜（${dateRange.start} - ${dateRange.end}）</b>`,
     "",
-    "📺 热门剧集",
+    "<b>📺 热门剧集</b>",
     tvSeries,
     "",
-    "🎬 热门电影",
+    "<b>🎬 热门电影</b>",
     movies,
   ].join("\n");
 }
@@ -226,7 +233,7 @@ Generate:
     const notificationText = buildNotificationText(enrichedRanking, dateRange);
 
     console.log("📤 Sending notification to Telegram...");
-    await sendTelegramNotification({ text: notificationText });
+    await sendTelegramNotification({ text: notificationText, parseMode: "HTML" });
 
     return notificationText;
   } catch (error) {
