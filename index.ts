@@ -1,19 +1,14 @@
 import { z } from "zod";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { generateText, Output } from "ai";
-import { sendSlackNotification } from "./notification.ts";
+import { sendTelegramNotification } from "./notification.ts";
 import {
   getDoubanRankings,
   getDoubanWeeklyRankings,
   getDoubanKoreanHot,
   getDoubanGlobalWeeklyRankings,
 } from "./douban.ts";
-import {
-  DateRange,
-  EnrichedRankingItem,
-  SlackBlock,
-  RichTextSection,
-} from "./types.ts";
+import { DateRange, EnrichedRankingItem } from "./types.ts";
 import { AI_MODEL } from "./constants.ts";
 import { enrichRankingItems } from "./doubanApi.ts";
 
@@ -31,69 +26,27 @@ interface EnrichedRanking {
   movies: EnrichedRankingItem[];
 }
 
-function buildItemSection(item: EnrichedRankingItem): RichTextSection {
-  const elements: RichTextSection["elements"] = [
-    { type: "text", text: item.name },
-  ];
-
-  if (item.rating) {
-    elements.push(
-      { type: "text", text: "  " },
-      { type: "text", text: String(item.rating) }
-    );
-  }
-  return { type: "rich_text_section", elements };
+function formatRankingItem(item: EnrichedRankingItem, index: number): string {
+  const rating = item.rating ? `  ${item.rating}` : "";
+  return `${index + 1}. ${item.name}${rating}`;
 }
 
-function buildCategoryBlock(
-  title: string,
-  items: EnrichedRankingItem[]
-): SlackBlock {
-  return {
-    type: "rich_text",
-    elements: [
-      {
-        type: "rich_text_section",
-        elements: [{ type: "text", text: title, style: { bold: true } }],
-      },
-      {
-        type: "rich_text_list",
-        style: "ordered",
-        elements: items.map(buildItemSection),
-      },
-    ],
-  };
-}
-
-function buildRankingBlocks(
+function buildNotificationText(
   ranking: EnrichedRanking,
   dateRange: DateRange
-): SlackBlock[] {
-  return [
-    {
-      type: "header",
-      text: { type: "plain_text", text: "💥 本周影视热榜", emoji: true },
-    },
-    {
-      type: "context",
-      elements: [
-        {
-          type: "mrkdwn",
-          text: `*${dateRange.start} – ${dateRange.end}*`,
-        },
-      ],
-    },
-    { type: "divider" },
-    buildCategoryBlock("📺 热门剧集", ranking.tvSeries),
-    { type: "divider" },
-    buildCategoryBlock("🎬 热门电影", ranking.movies),
-  ];
-}
+): string {
+  const tvSeries = ranking.tvSeries.map(formatRankingItem).join("\n");
+  const movies = ranking.movies.map(formatRankingItem).join("\n");
 
-function buildFallbackText(ranking: EnrichedRanking, dateRange: DateRange): string {
-  const tv = ranking.tvSeries.map((i) => i.name).join(" · ");
-  const movies = ranking.movies.map((i) => i.name).join(" · ");
-  return `💥 本周影视热榜（${dateRange.start} - ${dateRange.end}）\n📺 ${tv}\n🎬 ${movies}`;
+  return [
+    `💥 本周影视热榜（${dateRange.start} - ${dateRange.end}）`,
+    "",
+    "📺 热门剧集",
+    tvSeries,
+    "",
+    "🎬 热门电影",
+    movies,
+  ].join("\n");
 }
 
 function getDateRange(): DateRange {
@@ -270,13 +223,12 @@ Generate:
       movies: enrichedMovies,
     };
 
-    const blocks = buildRankingBlocks(enrichedRanking, dateRange);
-    const fallbackText = buildFallbackText(enrichedRanking, dateRange);
+    const notificationText = buildNotificationText(enrichedRanking, dateRange);
 
-    console.log("📤 Sending notification to Slack...");
-    await sendSlackNotification({ text: fallbackText, blocks });
+    console.log("📤 Sending notification to Telegram...");
+    await sendTelegramNotification({ text: notificationText });
 
-    return fallbackText;
+    return notificationText;
   } catch (error) {
     console.error("❌ Error in generateRankingSummary:", error);
     if (error instanceof Error) {

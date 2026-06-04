@@ -1,60 +1,93 @@
 import axios from "axios";
-import { SlackBlock, SlackPostMessageRequest, SlackPostMessageResponse } from "./types.ts";
 
-interface SendSlackNotificationOptions {
+interface SendTelegramNotificationOptions {
   text: string;
-  blocks?: SlackBlock[];
-  channel?: string;
-  unfurlLinks?: boolean;
+  chatId?: string;
+  messageThreadId?: string | number;
+  disableLinkPreview?: boolean;
 }
 
-export async function sendSlackNotification({
-  text,
-  blocks,
-  channel,
-  unfurlLinks = false,
-}: SendSlackNotificationOptions) {
-  const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
-  if (!SLACK_BOT_TOKEN) {
-    console.error("SLACK_BOT_TOKEN not found in environment variables");
-    return;
+interface TelegramSendMessageRequest {
+  chat_id: string;
+  text: string;
+  message_thread_id?: number;
+  link_preview_options?: {
+    is_disabled: boolean;
+  };
+}
+
+interface TelegramSendMessageResponse {
+  ok: boolean;
+  description?: string;
+}
+
+function parseMessageThreadId(value: string | number | undefined): number | undefined {
+  if (value === undefined || value === "") {
+    return undefined;
   }
 
-  const SLACK_CHANNEL = channel || process.env.SLACK_CHANNEL;
-  if (!SLACK_CHANNEL) {
-    console.error("SLACK_CHANNEL not found");
-    return;
+  const threadId = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(threadId) || threadId <= 0) {
+    throw new Error("TELEGRAM_MESSAGE_THREAD_ID must be a positive integer");
+  }
+
+  return threadId;
+}
+
+export async function sendTelegramNotification({
+  text,
+  chatId,
+  messageThreadId,
+  disableLinkPreview = true,
+}: SendTelegramNotificationOptions) {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (!botToken) {
+    throw new Error("TELEGRAM_BOT_TOKEN not found in environment variables");
+  }
+
+  const targetChatId = chatId || process.env.TELEGRAM_CHAT_ID;
+  if (!targetChatId) {
+    throw new Error("TELEGRAM_CHAT_ID not found in environment variables");
+  }
+
+  const targetMessageThreadId = parseMessageThreadId(
+    messageThreadId ?? process.env.TELEGRAM_MESSAGE_THREAD_ID
+  );
+
+  const requestData: TelegramSendMessageRequest = {
+    chat_id: targetChatId,
+    text,
+  };
+
+  if (targetMessageThreadId !== undefined) {
+    requestData.message_thread_id = targetMessageThreadId;
+  }
+
+  if (disableLinkPreview) {
+    requestData.link_preview_options = { is_disabled: true };
   }
 
   try {
-    const requestData: SlackPostMessageRequest = {
-      channel: SLACK_CHANNEL,
-      text,
-      unfurl_links: unfurlLinks,
-      unfurl_media: unfurlLinks,
-    };
-
-    if (blocks && blocks.length > 0) {
-      requestData.blocks = blocks;
-    }
-
-    const response = await axios.post<SlackPostMessageResponse>(
-      "https://slack.com/api/chat.postMessage",
-      requestData,
-      {
-        headers: {
-          Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
-          "Content-Type": "application/json; charset=utf-8",
-        },
-      }
+    const response = await axios.post<TelegramSendMessageResponse>(
+      `https://api.telegram.org/bot${botToken}/sendMessage`,
+      requestData
     );
 
-    if (response.data.ok) {
-      console.log("✅ Slack notification sent successfully");
-    } else {
-      console.error("❌ Slack API returned error:", response.data.error);
+    if (!response.data.ok) {
+      throw new Error(
+        `Telegram API returned error: ${response.data.description ?? "unknown error"}`
+      );
     }
   } catch (error) {
-    console.error("❌ Failed to send Slack notification:", error);
+    if (axios.isAxiosError<TelegramSendMessageResponse>(error)) {
+      const status = error.response?.status;
+      const description = error.response?.data?.description ?? error.message;
+      throw new Error(
+        `Telegram notification failed${status ? ` (${status})` : ""}: ${description}`
+      );
+    }
+    throw error;
   }
+
+  console.log("✅ Telegram notification sent successfully");
 }
