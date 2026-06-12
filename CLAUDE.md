@@ -12,7 +12,7 @@ Bun runs `.ts` natively and auto-loads `.env`; there is no build step and no `do
 
 ## Architecture
 
-This is a **one-shot CLI script**, not a long-running service. `index.ts` runs top-to-bottom and exits. It is triggered weekly by `.github/workflows/work.yml` (cron `30 11 * * 5` — Friday 11:30 UTC) via `oven-sh/setup-bun@v2`.
+This is a **one-shot CLI script**, not a long-running service. `index.ts` runs top-to-bottom and exits. It is triggered weekly by `.github/workflows/work.yml` (cron `0 10 * * 5` — Friday 10:00 UTC / 18:00 Beijing time) via `oven-sh/setup-bun@v2`.
 
 ### Pipeline (all in `index.ts`)
 
