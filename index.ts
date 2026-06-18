@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { generateText, Output } from "ai";
+import { generateObject } from "ai";
 import { sendTelegramNotification } from "./notification.ts";
 import {
   getDoubanRankings,
@@ -197,21 +197,18 @@ Generate:
 - tvSeries: Top 5 TV series names (in Simplified Chinese)
 - movies: Top 5 movie names (in Simplified Chinese)`;
 
-    const result = await generateText({
+    const result = await generateObject({
       model: openrouter.chat(AI_MODEL, {
         provider: { order: ["anthropic"], allow_fallbacks: false },
       }),
-      output: Output.object({ schema: rankingSchema }),
+      schema: rankingSchema,
       system: systemPrompt,
       prompt: userPrompt,
       temperature: 0,
     });
     console.log("✅ Ranking generated successfully");
 
-    const output = result.output;
-    if (!output) {
-      throw new Error("Failed to generate structured ranking output");
-    }
+    const output = result.object;
 
     console.log("\n📄 Generated Ranking:");
     console.log("=".repeat(50));
