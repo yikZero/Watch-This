@@ -15,7 +15,15 @@ jobs:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+
+      - name: Restore previous ranking
+        uses: actions/cache/restore@v4
+        with:
+          path: data/previous-ranking.json
+          key: ${{ runner.os }}-ranking-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-ranking-
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -27,3 +35,9 @@ jobs:
 
       - name: Run Script
         run: bun run index.ts
+
+      - name: Save current ranking
+        uses: actions/cache/save@v4
+        with:
+          path: data/previous-ranking.json
+          key: ${{ runner.os }}-ranking-${{ github.run_id }}

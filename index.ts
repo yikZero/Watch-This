@@ -1,3 +1,5 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import { z } from "zod";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { generateObject } from "ai";
@@ -15,11 +17,18 @@ import { enrichRankingItems } from "./doubanApi.ts";
 const rankingSchema = z.object({
   tvSeries: z
     .array(z.string())
+    .length(5)
     .describe("Exactly 5 TV series names in Simplified Chinese, in ranked order"),
   movies: z
     .array(z.string())
+    .length(5)
     .describe("Exactly 5 movie names in Simplified Chinese, in ranked order"),
 });
+
+type Ranking = z.infer<typeof rankingSchema>;
+
+const RANKING_STATE_PATH =
+  process.env.RANKING_STATE_PATH ?? "data/previous-ranking.json";
 
 interface EnrichedRanking {
   tvSeries: EnrichedRankingItem[];
@@ -101,10 +110,34 @@ function describeContent(name: string, content: string): void {
   );
 }
 
+async function loadPreviousRanking(): Promise<Ranking | null> {
+  try {
+    const raw = await readFile(RANKING_STATE_PATH, "utf8");
+    const ranking = rankingSchema.parse(JSON.parse(raw));
+    console.log(`✅ Previous ranking loaded from ${RANKING_STATE_PATH}`);
+    return ranking;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`ℹ️ No usable previous ranking (${message})`);
+    return null;
+  }
+}
+
+async function savePreviousRanking(ranking: Ranking): Promise<void> {
+  await mkdir(dirname(RANKING_STATE_PATH), { recursive: true });
+  await writeFile(
+    RANKING_STATE_PATH,
+    `${JSON.stringify(ranking, null, 2)}\n`,
+    "utf8"
+  );
+  console.log(`✅ Current ranking saved to ${RANKING_STATE_PATH}`);
+}
+
 async function generateRankingSummary(): Promise<string> {
   console.log("🚀 Starting ranking generation process...");
   try {
     const dateRange = getDateRange();
+    const previousRanking = await loadPreviousRanking();
 
     console.log("🔍 Fetching data from sources...");
     const [
@@ -170,6 +203,10 @@ ${hasWeeklyData ? doubanWeeklyRaw : "No Douban weekly (Chinese) data available t
 ${hasGlobalWeeklyData ? doubanGlobalWeeklyRaw : "No Douban weekly (global) data available this week"}
 </douban_weekly_global>
 
+<previous_week_ranking>
+${previousRanking ? JSON.stringify(previousRanking, null, 2) : "No previous ranking available"}
+</previous_week_ranking>
+
 Instructions:
 1. Only include works that explicitly appear in the source data above. Do not invent titles.
 2. Exclude children's content from consideration.
@@ -180,7 +217,11 @@ Instructions:
    - 华语正剧 / 悬疑 / 古装 when highly rated
    Strongly de-prioritise Western superhero shows, gritty HBO-style prestige dramas, and animation aimed at Western audiences — even if they appear in the Global Weekly list. Only include such a Western show in the final Top 5 if it both (a) has a Douban rating ≥ 9.3 and (b) clearly dominates scoring with no viable Chinese/Korean alternative.
 5. Weekly rankings (口碑榜) indicate quality and sustained popularity.
-6. Tie-breaking (apply in order when total scores are equal):
+6. Keep the list fresh compared with <previous_week_ranking>:
+   - Subtract 12 points from every title that appeared in the same category last week.
+   - Include no more than 2 repeated titles per category when at least 3 eligible alternatives exist in this week's source data.
+   - A repeated title may remain only when its adjusted score still qualifies; never repeat a title merely because it is familiar.
+7. Tie-breaking (apply in order when total scores are equal):
    a. Higher Douban rating wins.
    b. Appearing in more distinct data sources wins.
    c. Higher rank in Douban Hot wins.
@@ -231,6 +272,7 @@ Generate:
 
     console.log("📤 Sending notification to Telegram...");
     await sendTelegramNotification({ text: notificationText, parseMode: "HTML" });
+    await savePreviousRanking(output);
 
     return notificationText;
   } catch (error) {
