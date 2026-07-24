@@ -1,8 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { z } from "zod";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { generateObject } from "ai";
 import { sendTelegramNotification } from "./notification.ts";
 import {
   getDoubanRankings,
@@ -11,8 +9,8 @@ import {
   getDoubanGlobalWeeklyRankings,
 } from "./douban.ts";
 import { DateRange, EnrichedRankingItem } from "./types.ts";
-import { AI_MODEL } from "./constants.ts";
 import { enrichRankingItems } from "./doubanApi.ts";
+import { generateDeterministicRanking, Ranking } from "./ranking.ts";
 
 const rankingSchema = z.object({
   tvSeries: z
@@ -22,8 +20,6 @@ const rankingSchema = z.object({
     .array(z.string())
     .describe("Exactly 5 movie names in Simplified Chinese, in ranked order"),
 });
-
-type Ranking = z.infer<typeof rankingSchema>;
 
 const RANKING_STATE_PATH =
   process.env.RANKING_STATE_PATH ?? "data/previous-ranking.json";
@@ -181,80 +177,21 @@ async function generateRankingSummary(): Promise<string> {
       console.log("⚠️ No Douban Weekly (Global) data available");
     }
 
-    console.log("🤖 Generating ranking using OpenRouter...");
-    const openrouter = createOpenRouter({
-      apiKey: process.env.OPENROUTER_API_KEY,
-    });
-
-    const systemPrompt = `You are a professional film and TV analyst specialized in entertainment rankings. Your task is to analyze weekly entertainment data and generate a ranking list of popular TV series and movies tailored to a Chinese audience.
-
-Do your scoring silently. Respond with ONLY the JSON object conforming to the provided schema — no preamble, no explanation of your calculations, no chain-of-thought text. The tvSeries and movies arrays must contain exactly 5 plain title strings each, in ranked order, without numbering, scoring, or commentary appended.`;
-
-    const userPrompt = `Analyze the following entertainment data and generate rankings:
-
-<douban_hot_ranking>
-${doubanRanking}
-</douban_hot_ranking>
-
-<douban_korean_hot>
-${hasKoreanData ? doubanKoreanRaw : "No Douban Korean hot data available this week"}
-</douban_korean_hot>
-
-<douban_weekly_chinese>
-${hasWeeklyData ? doubanWeeklyRaw : "No Douban weekly (Chinese) data available this week"}
-</douban_weekly_chinese>
-
-<douban_weekly_global>
-${hasGlobalWeeklyData ? doubanGlobalWeeklyRaw : "No Douban weekly (global) data available this week"}
-</douban_weekly_global>
-
-<previous_week_ranking>
-${previousRanking ? JSON.stringify(previousRanking, null, 2) : "No previous ranking available"}
-</previous_week_ranking>
-
-Instructions:
-1. Only include works that explicitly appear in the source data above. Do not invent titles.
-2. Exclude children's content from consideration.
-3. Prefer works that appear in multiple data sources.
-4. **Audience preference** — the audience is Chinese and watches primarily:
-   - 韩剧 (Korean dramas, romance / thriller / slice-of-life)
-   - 小甜剧 (mainland Chinese sweet romance dramas, 偶像剧, 甜宠)
-   - 华语正剧 / 悬疑 / 古装 when highly rated
-   Strongly de-prioritise Western superhero shows, gritty HBO-style prestige dramas, and animation aimed at Western audiences — even if they appear in the Global Weekly list. Only include such a Western show in the final Top 5 if it both (a) has a Douban rating ≥ 9.3 and (b) clearly dominates scoring with no viable Chinese/Korean alternative.
-5. Weekly rankings (口碑榜) indicate quality and sustained popularity.
-6. Keep the list fresh compared with <previous_week_ranking>:
-   - Subtract 12 points from every title that appeared in the same category last week.
-   - Include no more than 2 repeated titles per category when at least 3 eligible alternatives exist in this week's source data.
-   - A repeated title may remain only when its adjusted score still qualifies; never repeat a title merely because it is familiar.
-7. Tie-breaking (apply in order when total scores are equal):
-   a. Higher Douban rating wins.
-   b. Appearing in more distinct data sources wins.
-   c. Higher rank in Douban Hot wins.
-
-Scoring Criteria:
-- Douban Hot ranking (实时热门, primary): Top 5 = 20 points, 6-10 = 15 points
-- Douban ratings above 9.0 add 5 bonus points
-${hasWeeklyData ? "- Douban Weekly Chinese (华语口碑): Top 5 = 15 points, 6-10 = 10 points" : ""}
-${hasKoreanData ? "- Douban Korean Hot (韩剧热门): Top 5 = 15 points, 6-10 = 10 points" : ""}
-${hasGlobalWeeklyData ? "- Douban Weekly Global (全球口碑): Top 5 = 10 points, 6-10 = 5 points" : ""}
-- Calculate weighted scores to determine the final ranking
-
-Generate:
-- tvSeries: Top 5 TV series names (in Simplified Chinese)
-- movies: Top 5 movie names (in Simplified Chinese)`;
-
-    const result = await generateObject({
-      model: openrouter.chat(AI_MODEL, {
-        provider: { order: ["anthropic"], allow_fallbacks: false },
-      }),
-      schema: rankingSchema,
-      system: systemPrompt,
-      prompt: userPrompt,
-      temperature: 0,
-    });
-    console.log("✅ Ranking generated successfully");
-
-    const output = ensureRankingLength(result.object);
+    console.log("🧮 Calculating ranking with freshness adjustment...");
+    const output = ensureRankingLength(
+      generateDeterministicRanking(
+        {
+          doubanHot: doubanRanking,
+          doubanWeekly: hasWeeklyData ? doubanWeeklyRaw : undefined,
+          doubanKorean: hasKoreanData ? doubanKoreanRaw : undefined,
+          doubanGlobalWeekly: hasGlobalWeeklyData
+            ? doubanGlobalWeeklyRaw
+            : undefined,
+        },
+        previousRanking
+      )
+    );
+    console.log("✅ Ranking calculated successfully");
 
     console.log("\n📄 Generated Ranking:");
     console.log("=".repeat(50));
