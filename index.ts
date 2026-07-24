@@ -17,11 +17,9 @@ import { enrichRankingItems } from "./doubanApi.ts";
 const rankingSchema = z.object({
   tvSeries: z
     .array(z.string())
-    .length(5)
     .describe("Exactly 5 TV series names in Simplified Chinese, in ranked order"),
   movies: z
     .array(z.string())
-    .length(5)
     .describe("Exactly 5 movie names in Simplified Chinese, in ranked order"),
 });
 
@@ -110,10 +108,17 @@ function describeContent(name: string, content: string): void {
   );
 }
 
+function ensureRankingLength(ranking: Ranking): Ranking {
+  if (ranking.tvSeries.length !== 5 || ranking.movies.length !== 5) {
+    throw new Error("Ranking must contain exactly 5 TV series and 5 movies");
+  }
+  return ranking;
+}
+
 async function loadPreviousRanking(): Promise<Ranking | null> {
   try {
     const raw = await readFile(RANKING_STATE_PATH, "utf8");
-    const ranking = rankingSchema.parse(JSON.parse(raw));
+    const ranking = ensureRankingLength(rankingSchema.parse(JSON.parse(raw)));
     console.log(`✅ Previous ranking loaded from ${RANKING_STATE_PATH}`);
     return ranking;
   } catch (error) {
@@ -249,7 +254,7 @@ Generate:
     });
     console.log("✅ Ranking generated successfully");
 
-    const output = result.object;
+    const output = ensureRankingLength(result.object);
 
     console.log("\n📄 Generated Ranking:");
     console.log("=".repeat(50));
